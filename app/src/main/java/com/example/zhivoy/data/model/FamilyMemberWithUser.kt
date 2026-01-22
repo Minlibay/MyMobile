@@ -1,0 +1,12 @@
+package com.example.zhivoy.data.model
+
+data class FamilyMemberWithUser(
+    val userId: Long,
+    val login: String,
+    val joinedAtEpochMs: Long,
+    val totalXp: Int = 0
+)
+
+
+
+
