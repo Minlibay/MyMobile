@@ -19,4 +19,3 @@ data class UserSettingsEntity(
     val updatedAtEpochMs: Long,
 )
 
-

@@ -54,13 +54,22 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.rotate
 import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
+import com.example.zhivoy.BuildConfig
 import com.example.zhivoy.data.entities.AchievementEntity
+import com.example.zhivoy.data.repository.AiChatRepository
+import com.example.zhivoy.feature.main.AiChatViewModel
+import com.example.zhivoy.network.api.OpenRouterApi
+import retrofit2.Retrofit
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import okhttp3.MediaType.Companion.toMediaType
+import kotlinx.serialization.json.Json
 import com.example.zhivoy.data.entities.FoodEntryEntity
 import com.example.zhivoy.data.entities.UserSettingsEntity
 import com.example.zhivoy.data.entities.WeightEntryEntity
 import com.example.zhivoy.feature.main.brain.AddBookDialog
 import com.example.zhivoy.feature.main.home.AddFoodDialog
 import com.example.zhivoy.feature.main.home.AddWeightDialog
+import com.example.zhivoy.feature.main.home.AiChatDialog
 import com.example.zhivoy.feature.main.home.GoalsDialog
 import com.example.zhivoy.ui.components.GradientCard
 import com.example.zhivoy.ui.components.ModernBarChart
@@ -249,6 +258,25 @@ fun HomeScreen() {
     var showAddFood by remember { mutableStateOf(false) }
     var showAddWeight by remember { mutableStateOf(false) }
     var showAddBook by remember { mutableStateOf(false) }
+    var showAiChat by remember { mutableStateOf(false) }
+
+    val openRouterApi = remember {
+        Retrofit.Builder()
+            .baseUrl("https://openrouter.ai/api/v1/")
+            .addConverterFactory(Json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(OpenRouterApi::class.java)
+    }
+
+    val aiChatViewModel = remember(userId) {
+        val key = BuildConfig.OPENROUTER_API_KEY
+        if (userId != null && key.isNotBlank()) {
+            AiChatViewModel(
+                AiChatRepository(openRouterApi, db.foodDao(), key),
+                userId
+            )
+        } else null
+    }
     
     // Нативное конфетти
     val confettiAnim = remember { Animatable(0f) }
@@ -391,6 +419,37 @@ fun HomeScreen() {
                 showGoals = false
             },
         )
+    }
+
+    if (showAiChat) {
+        if (aiChatViewModel != null) {
+            AiChatDialog(
+                viewModel = aiChatViewModel,
+                onDismiss = { showAiChat = false }
+            )
+        } else {
+            // Показать сообщение, что нужно настроить API ключ
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showAiChat = false },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = { showAiChat = false }) {
+                        androidx.compose.material3.Text("Ок")
+                    }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { showAiChat = false }) {
+                        androidx.compose.material3.Text("Отмена")
+                    }
+                },
+                title = { androidx.compose.material3.Text("API ключ не настроен") },
+                text = {
+                    androidx.compose.material3.Text(
+                        "Для использования ИИ помощника нужно задать OPENROUTER_API_KEY в gradle.properties (или local.properties), " +
+                            "либо через переменную окружения OPENROUTER_API_KEY."
+                    )
+                }
+            )
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -734,7 +793,7 @@ fun HomeScreen() {
         }
 
         FloatingActionButton(
-            onClick = { showAddFood = true },
+            onClick = { showAiChat = true },
             modifier = Modifier
                 .padding(20.dp)
                 .align(Alignment.BottomEnd),
@@ -778,5 +837,4 @@ fun HomeScreen() {
         )
     }
 }
-
 

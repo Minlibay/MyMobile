@@ -20,6 +20,20 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // OpenRouter API key:
+        // 1) gradle.properties / local.properties: OPENROUTER_API_KEY=...
+        // 2) или переменная окружения: OPENROUTER_API_KEY
+        val openRouterApiKey: String =
+            (project.findProperty("OPENROUTER_API_KEY") as String?)
+                ?: System.getenv("OPENROUTER_API_KEY")
+                ?: ""
+
+        buildConfigField(
+            "String",
+            "OPENROUTER_API_KEY",
+            "\"${openRouterApiKey}\""
+        )
     }
 
     buildTypes {
@@ -40,6 +54,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

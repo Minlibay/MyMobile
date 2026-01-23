@@ -132,7 +132,7 @@ fun GoalsDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Напоминания", 
+                            text = "Напоминания",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium
                         )
@@ -184,6 +184,5 @@ fun GoalsDialog(
         shape = RoundedCornerShape(28.dp)
     )
 }
-
 
 
