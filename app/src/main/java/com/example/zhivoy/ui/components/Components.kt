@@ -6,6 +6,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.*
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +28,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import com.example.zhivoy.ui.theme.FitnessGradientEnd
 import com.example.zhivoy.ui.theme.FitnessGradientStart
 
@@ -35,16 +49,17 @@ fun ModernButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     isGradient: Boolean = true,
-    containerColor: Color = MaterialTheme.colorScheme.primary
+    containerColor: Color = MaterialTheme.colorScheme.primary,
+    isLoading: Boolean = false
 ) {
     Button(
         onClick = onClick,
-        enabled = enabled,
+        enabled = enabled && !isLoading,
         modifier = modifier
             .height(56.dp)
             .fillMaxWidth()
             .shadow(
-                elevation = if (enabled) 8.dp else 0.dp,
+                elevation = if (enabled && !isLoading) 8.dp else 0.dp,
                 shape = RoundedCornerShape(18.dp),
                 spotColor = FitnessGradientStart.copy(alpha = 0.5f)
             ),
@@ -61,13 +76,13 @@ fun ModernButton(
             modifier = Modifier
                 .fillMaxSize()
                 .then(
-                    if (isGradient && enabled) {
+                    if (isGradient && enabled && !isLoading) {
                         Modifier.background(
                             brush = Brush.horizontalGradient(
                                 colors = listOf(FitnessGradientStart, FitnessGradientEnd)
                             )
                         )
-                    } else if (enabled) {
+                    } else if (enabled && !isLoading) {
                         Modifier.background(containerColor)
                     } else {
                         Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
@@ -75,12 +90,16 @@ fun ModernButton(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
+            if (isLoading) {
+                ButtonLoadingIndicator()
+            } else {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }
@@ -382,6 +401,231 @@ fun ModernBarChart(
             }
         }
     }
+}
+
+// ========== ИНДИКАТОРЫ ЗАГРУЗКИ И СОСТОЯНИЯ ==========
+
+// Skeleton loader для карточек
+@Composable
+fun SkeletonCard(
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "skeleton")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "skeletonAlpha"
+    )
+
+    ModernCard(modifier = modifier) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(20.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha))
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.6f)
+                    .height(16.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha))
+            )
+        }
+    }
+}
+
+// Skeleton loader для StatCard
+@Composable
+fun SkeletonStatCard(
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "skeleton")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "skeletonAlpha"
+    )
+
+    ModernCard(modifier = modifier) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha))
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.5f)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha))
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.7f)
+                    .height(24.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha))
+            )
+        }
+    }
+}
+
+// Центральный индикатор загрузки
+@Composable
+fun LoadingIndicator(
+    modifier: Modifier = Modifier,
+    size: Dp = 48.dp
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(size),
+            color = MaterialTheme.colorScheme.primary,
+            strokeWidth = 4.dp
+        )
+    }
+}
+
+// Индикатор загрузки в кнопке
+@Composable
+fun ButtonLoadingIndicator(
+    modifier: Modifier = Modifier
+) {
+    CircularProgressIndicator(
+        modifier = modifier.size(20.dp),
+        color = Color.White,
+        strokeWidth = 2.dp
+    )
+}
+
+// Snackbar Host для отображения уведомлений
+@Composable
+fun ModernSnackbarHost(
+    snackbarHostState: SnackbarHostState,
+    modifier: Modifier = Modifier
+) {
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = modifier,
+        snackbar = { data ->
+            Snackbar(
+                snackbarData = data,
+                shape = RoundedCornerShape(12.dp),
+                containerColor = MaterialTheme.colorScheme.inverseSurface,
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                actionColor = MaterialTheme.colorScheme.primary
+            )
+        }
+    )
+}
+
+// Функция для показа успешного сообщения
+suspend fun SnackbarHostState.showSuccess(message: String) {
+    showSnackbar(
+        message = message,
+        duration = SnackbarDuration.Short
+    )
+}
+
+// Функция для показа сообщения об ошибке
+suspend fun SnackbarHostState.showError(message: String) {
+    showSnackbar(
+        message = message,
+        duration = SnackbarDuration.Long
+    )
+}
+
+// Композабл для отображения состояния загрузки с контентом
+@Composable
+fun LoadingContent(
+    isLoading: Boolean,
+    modifier: Modifier = Modifier,
+    loadingContent: @Composable () -> Unit = { LoadingIndicator() },
+    content: @Composable () -> Unit
+) {
+    Box(modifier = modifier) {
+        content()
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)),
+                contentAlignment = Alignment.Center
+            ) {
+                loadingContent()
+            }
+        }
+    }
+}
+
+// Композабл для отображения состояния загрузки или ошибки
+@Composable
+fun <T> AsyncContent(
+    state: AsyncState<T>,
+    modifier: Modifier = Modifier,
+    onRetry: (() -> Unit)? = null,
+    loadingContent: @Composable () -> Unit = { LoadingIndicator() },
+    errorContent: @Composable (String) -> Unit = { error ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "Ошибка",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.error
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            if (onRetry != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                ModernButton(
+                    text = "Повторить",
+                    onClick = onRetry
+                )
+            }
+        }
+    },
+    content: @Composable (T) -> Unit
+) {
+    when (state) {
+        is AsyncState.Loading -> loadingContent()
+        is AsyncState.Error -> errorContent(state.message)
+        is AsyncState.Success -> content(state.data)
+    }
+}
+
+// Состояния для асинхронных операций
+sealed class AsyncState<out T> {
+    object Loading : AsyncState<Nothing>()
+    data class Success<T>(val data: T) : AsyncState<T>()
+    data class Error(val message: String) : AsyncState<Nothing>()
 }
 
 

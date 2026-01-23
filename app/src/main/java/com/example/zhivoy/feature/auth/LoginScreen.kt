@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,14 +38,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
 import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
+import com.example.zhivoy.data.entities.ProfileEntity
+import com.example.zhivoy.data.repository.AuthRepository
 import com.example.zhivoy.ui.components.ModernButton
 import com.example.zhivoy.ui.components.ModernOutlinedButton
 import com.example.zhivoy.ui.components.ModernTextField
 import com.example.zhivoy.ui.theme.FitnessGradientEnd
 import com.example.zhivoy.ui.theme.FitnessGradientStart
-import com.example.zhivoy.util.Crypto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -55,8 +59,10 @@ fun LoginScreen(
     onNeedOnboarding: () -> Unit,
     onLoggedIn: () -> Unit,
 ) {
+    val context = LocalContext.current
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
+    val authRepository = remember { AuthRepository(context, sessionStore) }
     val scope = rememberCoroutineScope()
 
     var loginOrEmail by rememberSaveable { mutableStateOf("") }
@@ -71,32 +77,60 @@ fun LoginScreen(
 
         val login = loginOrEmail.trim()
         if (login.isEmpty() || password.isEmpty()) {
-            error = "Заполните логин/email и пароль"
+            error = "Заполните логин и пароль"
             return
         }
 
         loading = true
         scope.launch {
-            val user = withContext(Dispatchers.IO) {
-                db.userDao().getByLoginOrEmail(login)
-            }
-            if (user == null) {
-                loading = false
-                error = "Пользователь не найден"
-                return@launch
-            }
-            val hash = Crypto.sha256(password)
-            if (hash != user.passwordHash) {
-                loading = false
-                error = "Неверный пароль"
-                return@launch
-            }
-            sessionStore.setUser(user.id)
-            val hasProfile = withContext(Dispatchers.IO) {
-                db.profileDao().getByUserId(user.id) != null
-            }
+            val result = authRepository.login(login, password)
             loading = false
-            if (hasProfile) onLoggedIn() else onNeedOnboarding()
+            
+            result.fold(
+                onSuccess = {
+                    // Пытаемся загрузить профиль с бекенда
+                    val userId = sessionStore.session.first()?.userId
+                    if (userId != null) {
+                        val profileResult = authRepository.getProfile()
+                        profileResult.fold(
+                            onSuccess = { profileResponse ->
+                                // Сохраняем профиль локально
+                                withContext(Dispatchers.IO) {
+                                    val now = System.currentTimeMillis()
+                                    db.profileDao().upsert(
+                                        ProfileEntity(
+                                            userId = userId,
+                                            heightCm = profileResponse.height_cm,
+                                            weightKg = profileResponse.weight_kg,
+                                            age = profileResponse.age,
+                                            sex = profileResponse.sex,
+                                            createdAtEpochMs = now,
+                                            updatedAtEpochMs = now,
+                                        )
+                                    )
+                                }
+                                onLoggedIn()
+                            },
+                            onFailure = {
+                                // Профиль не найден на бекенде, проверяем локально
+                                val hasProfile = withContext(Dispatchers.IO) {
+                                    db.profileDao().getByUserId(userId) != null
+                                }
+                                if (hasProfile) onLoggedIn() else onNeedOnboarding()
+                            }
+                        )
+                    } else {
+                        onNeedOnboarding()
+                    }
+                },
+                onFailure = { e ->
+                    error = when {
+                        e.message?.contains("401") == true -> "Неверный логин или пароль"
+                        e.message?.contains("409") == true -> "Пользователь уже существует"
+                        else -> "Ошибка подключения: ${e.message ?: "Неизвестная ошибка"}"
+                    }
+                }
+            )
         }
     }
 
@@ -199,9 +233,10 @@ fun LoginScreen(
             }
 
             ModernButton(
-                text = if (loading) "Входим..." else "Войти",
+                text = "Войти",
                 onClick = { submit() },
                 enabled = !loading,
+                isLoading = loading
             )
 
             ModernOutlinedButton(

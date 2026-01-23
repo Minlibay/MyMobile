@@ -3,11 +3,13 @@ package com.example.zhivoy
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.room.Room
 import com.example.zhivoy.data.AppDatabase
 import com.example.zhivoy.data.session.SessionStore
+import com.example.zhivoy.network.ApiClient
 import com.example.zhivoy.navigation.ZhivoyNavHost
 
 val LocalAppDatabase = staticCompositionLocalOf<AppDatabase> {
@@ -28,7 +30,11 @@ private fun provideDatabase(context: Context): AppDatabase {
 fun ZhivoyApp() {
     val context = LocalContext.current.applicationContext
     val db = provideDatabase(context)
-    val sessionStore = SessionStore(context)
+    val sessionStore = remember { SessionStore(context) }
+    
+    // Инициализируем authApi после создания sessionStore
+    val authApi = remember { ApiClient.createAuthApi(sessionStore) }
+    sessionStore.setAuthApi(authApi)
 
     CompositionLocalProvider(
         LocalAppDatabase provides db,

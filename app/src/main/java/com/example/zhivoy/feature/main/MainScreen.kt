@@ -34,12 +34,20 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import android.content.Context
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import com.example.zhivoy.LocalSessionStore
+import com.example.zhivoy.data.repository.AuthRepository
 import com.example.zhivoy.feature.main.profile.AchievementsScreen
 import com.example.zhivoy.steps.StepsPermissionAndTracking
+import androidx.compose.runtime.remember
+import androidx.compose.material3.SnackbarHostState
+import com.example.zhivoy.ui.components.ModernSnackbarHost
+import com.example.zhivoy.ui.components.showSuccess
+import androidx.compose.ui.Alignment
 import kotlinx.coroutines.launch
 
 private data class MainTab(
@@ -52,10 +60,13 @@ private data class MainTab(
 @Composable
 fun MainScreen() {
     StepsPermissionAndTracking()
+    val context = LocalContext.current
     val sessionStore = LocalSessionStore.current
+    val authRepository = remember { AuthRepository(context, sessionStore) }
     val scope = rememberCoroutineScope()
     var showMenu by remember { mutableStateOf(false) }
     var showAchievements by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     if (showAchievements) {
         AchievementsScreen(onBack = { showAchievements = false })
@@ -125,7 +136,10 @@ fun MainScreen() {
                             DropdownMenuItem(
                                 text = { Text("Выйти") },
                                 onClick = {
-                                    scope.launch { sessionStore.clear() }
+                                    scope.launch { 
+                                        authRepository.logout()
+                                        snackbarHostState.showSuccess("Вы вышли из аккаунта")
+                                    }
                                     showMenu = false
                                 },
                                 leadingIcon = { Icon(Icons.Default.Logout, contentDescription = null) }
@@ -151,12 +165,16 @@ fun MainScreen() {
             }
         },
     ) { padding ->
-        androidx.compose.foundation.layout.Box(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
             tabs[selected].content()
+            ModernSnackbarHost(
+                snackbarHostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
     }
 }

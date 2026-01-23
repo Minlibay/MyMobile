@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
@@ -35,30 +34,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.zhivoy.LocalAppDatabase
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
 import com.example.zhivoy.LocalSessionStore
-import com.example.zhivoy.data.entities.UserEntity
+import com.example.zhivoy.data.repository.AuthRepository
 import com.example.zhivoy.ui.components.ModernButton
 import com.example.zhivoy.ui.components.ModernOutlinedButton
 import com.example.zhivoy.ui.components.ModernTextField
 import com.example.zhivoy.ui.theme.FitnessGradientEnd
-import com.example.zhivoy.ui.theme.FitnessGradientStart
-import com.example.zhivoy.util.Crypto
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 fun RegisterScreen(
     onGoLogin: () -> Unit,
     onRegistered: () -> Unit,
 ) {
-    val db = LocalAppDatabase.current
+    val context = LocalContext.current
     val sessionStore = LocalSessionStore.current
+    val authRepository = remember { AuthRepository(context, sessionStore) }
     val scope = rememberCoroutineScope()
 
     var login by rememberSaveable { mutableStateOf("") }
-    var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -69,13 +65,8 @@ fun RegisterScreen(
         error = null
 
         val l = login.trim()
-        val e = email.trim()
         if (l.length < 3) {
             error = "Логин минимум 3 символа"
-            return
-        }
-        if (!e.contains("@") || !e.contains(".")) {
-            error = "Введите корректный email"
             return
         }
         if (password.length < 6) {
@@ -85,29 +76,30 @@ fun RegisterScreen(
 
         loading = true
         scope.launch {
-            val exists = withContext(Dispatchers.IO) {
-                db.userDao().getByLogin(l) != null || db.userDao().getByEmail(e) != null
-            }
-            if (exists) {
-                loading = false
-                error = "Логин или email уже заняты"
-                return@launch
-            }
-
-            val newId = withContext(Dispatchers.IO) {
-                db.userDao().insert(
-                    UserEntity(
-                        login = l,
-                        email = e,
-                        passwordHash = Crypto.sha256(password),
-                        createdAtEpochMs = System.currentTimeMillis(),
-                    ),
-                )
-            }
-
-            sessionStore.setUser(newId)
+            val result = authRepository.register(l, password)
             loading = false
-            onRegistered()
+            
+            result.fold(
+                onSuccess = { user ->
+                    // После регистрации автоматически логинимся
+                    val loginResult = authRepository.login(l, password)
+                    loginResult.fold(
+                        onSuccess = {
+                            onRegistered()
+                        },
+                        onFailure = { e ->
+                            error = "Ошибка входа после регистрации: ${e.message ?: "Неизвестная ошибка"}"
+                        }
+                    )
+                },
+                onFailure = { e ->
+                    error = when {
+                        e.message?.contains("409") == true -> "Логин уже занят"
+                        e.message?.contains("401") == true -> "Ошибка авторизации"
+                        else -> "Ошибка регистрации: ${e.message ?: "Неизвестная ошибка"}"
+                    }
+                }
+            )
         }
     }
 
@@ -156,13 +148,6 @@ fun RegisterScreen(
             )
 
             ModernTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = "Email",
-                leadingIcon = { Icon(imageVector = Icons.Default.Email, contentDescription = null) },
-            )
-
-            ModernTextField(
                 value = password,
                 onValueChange = { password = it },
                 label = "Пароль",
@@ -188,9 +173,10 @@ fun RegisterScreen(
             }
 
             ModernButton(
-                text = if (loading) "Создаем..." else "Создать аккаунт",
+                text = "Создать аккаунт",
                 onClick = { submit() },
                 enabled = !loading,
+                isLoading = loading
             )
 
             ModernOutlinedButton(

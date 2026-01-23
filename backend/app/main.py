@@ -75,14 +75,21 @@ def health() -> dict[str, str]:
 
 @app.post("/auth/register", response_model=UserMeResponse)
 def register(req: RegisterRequest, db: Session = Depends(get_db)) -> UserMeResponse:
-    existing = db.execute(select(User).where(User.login == req.login)).scalar_one_or_none()
-    if existing is not None:
-        raise HTTPException(status_code=409, detail="Login already exists")
-    user = User(login=req.login, password_hash=hash_password(req.password))
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return UserMeResponse(id=user.id, login=user.login)
+    try:
+        existing = db.execute(select(User).where(User.login == req.login)).scalar_one_or_none()
+        if existing is not None:
+            raise HTTPException(status_code=409, detail="Login already exists")
+        user = User(login=req.login, password_hash=hash_password(req.password))
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return UserMeResponse(id=user.id, login=user.login)
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @app.post("/auth/login", response_model=TokenPair)

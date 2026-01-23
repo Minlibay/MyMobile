@@ -13,19 +13,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.SnackbarHostState
+import com.example.zhivoy.ui.components.ModernSnackbarHost
+import com.example.zhivoy.ui.components.showSuccess
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.LocalDrink
-import androidx.compose.material.icons.filled.NoAccounts
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.SmokingRooms
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.material3.FloatingActionButton
@@ -69,11 +70,9 @@ import com.example.zhivoy.ui.components.StatCard
 import com.example.zhivoy.util.Calories
 import com.example.zhivoy.util.DateTime
 import com.example.zhivoy.util.Leveling
-import com.example.zhivoy.util.Streaks
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -86,6 +85,7 @@ fun HomeScreen() {
     val today = DateTime.epochDayNow()
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Stats for charts (observe changes in real-time)
     val stepsWeekEntries by (if (userId != null) db.stepsDao().observeInRange(userId, today - 6, today) else kotlinx.coroutines.flow.flowOf(emptyList()))
@@ -107,7 +107,7 @@ fun HomeScreen() {
     
     val dayLabels = remember {
         (0..6).reversed().map {
-            LocalDate.now().minusDays(it.toLong()).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale("ru"))
+            java.time.LocalDate.now().minusDays(it.toLong()).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("ru"))
         }
     }
 
@@ -187,11 +187,8 @@ fun HomeScreen() {
     
     var showConfetti by remember { mutableStateOf(false) }
 
-    val stepsDone = stepGoal > 0 && stepsToday >= stepGoal
-    val caloriesDone = calorieGoal > 0 && caloriesToday >= calorieGoal
-    val trainingDone = hasTrainingToday
-    val bookDone = hasBookToday
-    val noSmokeDone = noSmokeToday
+    val stepsDone = stepGoal > 0 && stepsToday in stepGoal..Int.MAX_VALUE
+    val caloriesDone = calorieGoal > 0 && caloriesToday in calorieGoal..Int.MAX_VALUE
     // waterDone is already defined above
 
     suspend fun awardOnce(type: String, points: Int, note: String) {
@@ -215,7 +212,7 @@ fun HomeScreen() {
         )
     }
 
-    LaunchedEffect(userId, stepsDone, caloriesDone, trainingDone, bookDone, noSmokeDone, waterDone) {
+    LaunchedEffect(userId, stepsDone, caloriesDone, hasTrainingToday, hasBookToday, noSmokeToday, waterDone) {
         if (userId == null) return@LaunchedEffect
         withContext(Dispatchers.IO) {
             if (stepsDone) {
@@ -225,12 +222,12 @@ fun HomeScreen() {
                 }
             }
             if (caloriesDone) awardOnce("quest_calories", 20, "Quest: calories")
-            if (trainingDone) awardOnce("quest_training", 30, "Quest: training")
-            if (bookDone) {
+            if (hasTrainingToday) awardOnce("quest_training", 30, "Quest: training")
+            if (hasBookToday) {
                 awardOnce("quest_book", 20, "Quest: book")
                 db.achievementDao().insert(AchievementEntity(userId = userId, code = "book_worm", createdAtEpochMs = System.currentTimeMillis()))
             }
-            if (noSmokeDone) awardOnce("quest_nosmoke", 10, "Quest: no smoke")
+            if (noSmokeToday) awardOnce("quest_nosmoke", 10, "Quest: no smoke")
             if (waterDone) {
                 awardOnce("quest_water", 15, "Quest: water")
                 db.achievementDao().insert(AchievementEntity(userId = userId, code = "water_hero", createdAtEpochMs = System.currentTimeMillis()))
@@ -291,6 +288,7 @@ fun HomeScreen() {
                             ),
                         )
                     }
+                    snackbarHostState.showSuccess("Еда добавлена! +5 XP")
                 }
                 showAddFood = false
             },
@@ -324,6 +322,7 @@ fun HomeScreen() {
                             ),
                         )
                     }
+                    snackbarHostState.showSuccess("Вес сохранен! +10 XP")
                 }
                 showAddWeight = false
             },
@@ -358,6 +357,7 @@ fun HomeScreen() {
                             ),
                         )
                     }
+                    snackbarHostState.showSuccess("Книга добавлена! +25 XP")
                 }
                 showAddBook = false
             },
@@ -443,7 +443,7 @@ fun HomeScreen() {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 LinearProgressIndicator(
-                    progress = (levelInfo.xpIntoLevel.toFloat() / levelInfo.xpForNextLevel).coerceIn(0f, 1f),
+                    progress = { (levelInfo.xpIntoLevel.toFloat() / levelInfo.xpForNextLevel).coerceIn(0f, 1f) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
@@ -462,7 +462,7 @@ fun HomeScreen() {
                     value = stepsToday.toString(),
                     subtitle = "Сегодня",
                     modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    icon = { Icon(Icons.AutoMirrored.Filled.DirectionsWalk, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                 )
                 StatCard(
                     title = "Ккал",
@@ -487,7 +487,7 @@ fun HomeScreen() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 LinearProgressIndicator(
-                    progress = if (stepGoal > 0) (stepsToday.toFloat() / stepGoal).coerceIn(0f, 1f) else 0f,
+                    progress = { if (stepGoal > 0) (stepsToday.toFloat() / stepGoal).coerceIn(0f, 1f) else 0f },
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -499,7 +499,7 @@ fun HomeScreen() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 LinearProgressIndicator(
-                    progress = if (calorieGoal > 0) (caloriesToday.toFloat() / calorieGoal).coerceIn(0f, 1f) else 0f,
+                    progress = { if (calorieGoal > 0) (caloriesToday.toFloat() / calorieGoal).coerceIn(0f, 1f) else 0f },
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.secondary,
                 )
@@ -581,7 +581,7 @@ fun HomeScreen() {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 LinearProgressIndicator(
-                    progress = ((waterToday ?: 0).toFloat() / waterGoal).coerceIn(0f, 1f),
+                    progress = { ((waterToday ?: 0).toFloat() / waterGoal).coerceIn(0f, 1f) },
                     modifier = Modifier.fillMaxWidth().height(10.dp).clip(CircleShape),
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.primaryContainer
@@ -643,13 +643,13 @@ fun HomeScreen() {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                val quests = listOf(
-                    Triple("Шаги", stepsDone, Icons.Default.DirectionsWalk),
+                val quests: List<Triple<String, Boolean, androidx.compose.ui.graphics.vector.ImageVector>> = listOf(
+                    Triple("Шаги", stepsDone, Icons.AutoMirrored.Filled.DirectionsWalk),
                     Triple("Калории", caloriesDone, Icons.Default.LocalFireDepartment),
                     Triple("Вода", waterDone, Icons.Default.LocalDrink),
-                    Triple("Тренировка", trainingDone, Icons.Default.FitnessCenter),
-                    Triple("Книга", bookDone, Icons.Default.AutoStories),
-                    Triple("Я не курю", noSmokeDone, Icons.Default.SmokingRooms),
+                    Triple("Тренировка", hasTrainingToday, Icons.Default.FitnessCenter),
+                    Triple("Книга", hasBookToday, Icons.Default.AutoStories),
+                    Triple("Я не курю", noSmokeToday, Icons.Default.SmokingRooms),
                 )
                 
                 quests.forEach { (title, done, icon) ->
@@ -737,7 +737,7 @@ fun HomeScreen() {
             onClick = { showAddFood = true },
             modifier = Modifier
                 .padding(20.dp)
-                .align(androidx.compose.ui.Alignment.BottomEnd),
+                .align(Alignment.BottomEnd),
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = androidx.compose.ui.graphics.Color.White,
         ) {
@@ -770,6 +770,12 @@ fun HomeScreen() {
                 }
             }
         }
+        
+        // Snackbar для уведомлений
+        ModernSnackbarHost(
+            snackbarHostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 

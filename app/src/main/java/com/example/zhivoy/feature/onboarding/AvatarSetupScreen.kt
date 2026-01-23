@@ -23,11 +23,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.data.entities.ProfileEntity
+import com.example.zhivoy.data.repository.AuthRepository
 import com.example.zhivoy.ui.components.ModernButton
 import com.example.zhivoy.ui.components.ModernTextField
 import com.example.zhivoy.ui.theme.FitnessGradientEnd
@@ -43,6 +45,8 @@ fun AvatarSetupScreen(
 ) {
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
+    val context = LocalContext.current
+    val authRepository = remember { AuthRepository(context, sessionStore) }
     val scope = rememberCoroutineScope()
 
     var heightCm by rememberSaveable { mutableStateOf("") }
@@ -189,22 +193,38 @@ fun AvatarSetupScreen(
 
                     loading = true
                     scope.launch {
-                        withContext(Dispatchers.IO) {
-                            val now = System.currentTimeMillis()
-                            db.profileDao().upsert(
-                                ProfileEntity(
-                                    userId = userId,
-                                    heightCm = h,
-                                    weightKg = w,
-                                    age = a,
-                                    sex = sex,
-                                    createdAtEpochMs = now,
-                                    updatedAtEpochMs = now,
-                                ),
+                        try {
+                            // Сохраняем профиль на бекенд
+                            val profileResult = authRepository.updateProfile(h, w, a, sex)
+                            profileResult.fold(
+                                onSuccess = { profileResponse ->
+                                    // Сохраняем профиль локально
+                                    withContext(Dispatchers.IO) {
+                                        val now = System.currentTimeMillis()
+                                        db.profileDao().upsert(
+                                            ProfileEntity(
+                                                userId = userId,
+                                                heightCm = profileResponse.height_cm,
+                                                weightKg = profileResponse.weight_kg,
+                                                age = profileResponse.age,
+                                                sex = profileResponse.sex,
+                                                createdAtEpochMs = now,
+                                                updatedAtEpochMs = now,
+                                            ),
+                                        )
+                                    }
+                                    loading = false
+                                    onDone()
+                                },
+                                onFailure = { e ->
+                                    error = "Ошибка сохранения: ${e.message}"
+                                    loading = false
+                                }
                             )
+                        } catch (e: Exception) {
+                            error = "Ошибка: ${e.message}"
+                            loading = false
                         }
-                        loading = false
-                        onDone()
                     }
                 },
                 enabled = !loading,
