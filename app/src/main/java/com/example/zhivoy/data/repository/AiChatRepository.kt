@@ -8,11 +8,10 @@ import com.example.zhivoy.network.api.Message
 import com.example.zhivoy.network.api.OpenRouterApi
 import com.example.zhivoy.network.api.OpenRouterRequest
 import com.example.zhivoy.network.api.ResponseFormat
+import com.example.zhivoy.config.AiConfig
 import com.example.zhivoy.util.DateTime
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import java.io.File
-import android.util.Base64
 
 @Serializable
 data class FoodAiResponse(
@@ -23,16 +22,12 @@ data class FoodAiResponse(
 class AiChatRepository(
     private val openRouterApi: OpenRouterApi,
     private val foodDao: FoodDao,
-    private val apiKey: String = "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" // Placeholder or User Key
+    private val apiKey: String
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun processFoodInput(userId: Long, text: String?, imageBase64: String?): Result<FoodAiResponse> {
-        val systemPrompt = """
-            Вы - помощник по питанию. Определите блюдо и калории.
-            Ответьте СТРОГО в формате JSON: {"title": "Название", "calories": 123}.
-            Используйте русский язык.
-        """.trimIndent()
+        val systemPrompt = AiConfig.SYSTEM_PROMPT
 
         val contentParts = mutableListOf<ContentPart>()
         text?.let { contentParts.add(ContentPart(type = "text", text = it)) }
@@ -46,7 +41,7 @@ class AiChatRepository(
         )
 
         val request = OpenRouterRequest(
-            model = "qwen/qwen-2.5-72b-instruct",
+            model = AiConfig.MODEL,
             messages = messages,
             response_format = ResponseFormat(type = "json_object")
         )

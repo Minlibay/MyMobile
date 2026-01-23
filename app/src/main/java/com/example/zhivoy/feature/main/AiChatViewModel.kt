@@ -27,7 +27,7 @@ class AiChatViewModel(
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(listOf(
-        ChatMessage("Привет! Что вы сегодня ели? Можете прислать фото или описать текстом.", false)
+        ChatMessage(com.example.zhivoy.config.AiConfig.INITIAL_ASSISTANT_MESSAGE, false)
     ))
     val messages = _messages.asStateFlow()
 
