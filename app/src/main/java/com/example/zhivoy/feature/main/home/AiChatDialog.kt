@@ -1,5 +1,12 @@
 package com.example.zhivoy.feature.main.home
 
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import coil.compose.AsyncImage
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -35,6 +42,20 @@ fun AiChatDialog(
     var inputText by remember { mutableStateOf("") }
     val context = LocalContext.current
     
+    var showImageSourceDialog by remember { mutableStateOf(false) }
+
+    val tempImageUri = remember { mutableStateOf<Uri?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            tempImageUri.value?.let { uri ->
+                viewModel.sendMessage(null, uri, context)
+            }
+        }
+    }
+
     val photoLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -49,7 +70,8 @@ fun AiChatDialog(
     ) {
         Surface(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth(0.9f) // 90% ширины
+                .fillMaxHeight(0.8f) // 80% высоты
                 .padding(16.dp),
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface
@@ -103,7 +125,7 @@ fun AiChatDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    IconButton(onClick = { photoLauncher.launch("image/*") }) {
+                    IconButton(onClick = { showImageSourceDialog = true }) {
                         Icon(
                             Icons.Default.PhotoCamera,
                             contentDescription = "Photo",
@@ -143,6 +165,25 @@ fun AiChatDialog(
             }
         }
     }
+    if (showImageSourceDialog) {
+        ImageSourceDialog(
+            onDismiss = { showImageSourceDialog = false },
+            onTakePhoto = {
+                showImageSourceDialog = false
+                val photoFile = File(context.cacheDir, "IMG_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.jpg")
+                tempImageUri.value = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    photoFile
+                )
+                cameraLauncher.launch(tempImageUri.value)
+            },
+            onChooseFromGallery = {
+                showImageSourceDialog = false
+                photoLauncher.launch("image/*")
+            }
+        )
+    }
 }
 
 @Composable
@@ -166,11 +207,45 @@ fun ChatBubble(message: ChatMessage) {
             shape = shape,
             tonalElevation = 2.dp
         ) {
-            Text(
-                text = message.text,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                message.imageUri?.let { uri ->
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = "Attached image",
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .padding(bottom = 8.dp)
+                    )
+                }
+                Text(
+                    text = message.text,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
     }
+}
+
+@Composable
+fun ImageSourceDialog(
+    onDismiss: () -> Unit,
+    onTakePhoto: () -> Unit,
+    onChooseFromGallery: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Выберите источник изображения") },
+        text = { Text("Вы хотите сделать новое фото или выбрать из галереи?") },
+        confirmButton = {
+            TextButton(onClick = onTakePhoto) {
+                Text("Сделать фото")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onChooseFromGallery) {
+                Text("Выбрать из галереи")
+            }
+        }
+    )
 }

@@ -9,7 +9,8 @@ package com.example.zhivoy.config
  */
 object AiConfig {
     /** OpenRouter model id (Qwen2.5). */
-    const val MODEL: String = "qwen/qwen-2.5-72b-instruct"
+    const val BASE_URL: String = "https://openrouter.ai/api/v1/"
+    const val MODEL: String = "qwen/qwen-2.5-vl-7b-instruct:free"
 
     /**
      * Текст первого сообщения в чате (UI), чтобы диалог начинался вопросом.

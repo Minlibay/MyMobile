@@ -1,5 +1,6 @@
 package com.example.zhivoy.data.repository
 
+import android.util.Log
 import com.example.zhivoy.data.dao.FoodDao
 import com.example.zhivoy.data.entities.FoodEntryEntity
 import com.example.zhivoy.network.api.ContentPart
@@ -32,7 +33,7 @@ class AiChatRepository(
         val contentParts = mutableListOf<ContentPart>()
         text?.let { contentParts.add(ContentPart(type = "text", text = it)) }
         imageBase64?.let { 
-            contentParts.add(ContentPart(type = "image_url", image_url = ImageUrl(url = "data:image/jpeg;base64,$it"))) 
+            contentParts.add(ContentPart(type = "image_url", image_url = ImageUrl(url = "data:image/jpeg;base64,$it")))
         }
 
         val messages = listOf(
@@ -42,14 +43,23 @@ class AiChatRepository(
 
         val request = OpenRouterRequest(
             model = AiConfig.MODEL,
-            messages = messages,
-            response_format = ResponseFormat(type = "json_object")
+            messages = messages
         )
 
         return try {
+            Log.d("AiChatRepository", "Sending AI request: model=${AiConfig.MODEL}, hasText=${!text.isNullOrBlank()}, hasImage=${imageBase64 != null}")
             val response = openRouterApi.getCompletion("Bearer $apiKey", request)
-            val content = response.choices.firstOrNull()?.message?.content ?: return Result.failure(Exception("Empty response"))
+            Log.d("AiChatRepository", "AI response received: choices=${response.choices.size}")
+
+            val content = response.choices.firstOrNull()?.message?.content
+                ?: run {
+                    Log.e("AiChatRepository", "AI response has no choices or content")
+                    return Result.failure(Exception("Empty response"))
+                }
+
+            Log.d("AiChatRepository", "AI content: $content")
             val foodData = json.decodeFromString<FoodAiResponse>(content)
+            Log.d("AiChatRepository", "Parsed food: title=${foodData.title}, calories=${foodData.calories}")
             
             // Сохраняем в БД
             val entry = FoodEntryEntity(
@@ -63,6 +73,7 @@ class AiChatRepository(
             
             Result.success(foodData)
         } catch (e: Exception) {
+            Log.e("AiChatRepository", "AI request failed", e)
             Result.failure(e)
         }
     }

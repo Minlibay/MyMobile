@@ -214,6 +214,25 @@ fun HealthScreen() {
             }
             
             Spacer(modifier = Modifier.height(16.dp))
+            ModernButton(
+                text = "Я покурил",
+                onClick = {
+                    if (userId == null) return@ModernButton
+                    scope.launch {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        withContext(Dispatchers.IO) {
+                            val current = db.smokeDao().get(userId) ?: return@withContext
+                            db.smokeDao().upsert(
+                                current.copy(
+                                    startedAtEpochMs = System.currentTimeMillis(),
+                                    updatedAtEpochMs = System.currentTimeMillis(),
+                                ),
+                            )
+                        }
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
             Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
             Spacer(modifier = Modifier.height(16.dp))
 

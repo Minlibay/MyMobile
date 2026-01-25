@@ -16,3 +16,11 @@ data class TrainingWeekGoalEntity(
 
 
 
+
+
+
+
+
+
+
+

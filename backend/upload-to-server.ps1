@@ -50,3 +50,11 @@ Write-Host "3. Run: bash setup-server.sh"
 
 
 
+
+
+
+
+
+
+
+

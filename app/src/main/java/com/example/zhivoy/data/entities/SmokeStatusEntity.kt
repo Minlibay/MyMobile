@@ -23,3 +23,11 @@ data class SmokeStatusEntity(
 
 
 
+
+
+
+
+
+
+
+

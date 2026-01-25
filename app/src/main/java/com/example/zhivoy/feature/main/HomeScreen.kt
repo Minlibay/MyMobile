@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.SnackbarHostState
 import com.example.zhivoy.ui.components.ModernSnackbarHost
 import com.example.zhivoy.ui.components.showSuccess
@@ -62,6 +64,8 @@ import com.example.zhivoy.network.api.OpenRouterApi
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import kotlinx.serialization.json.Json
 import com.example.zhivoy.data.entities.FoodEntryEntity
 import com.example.zhivoy.data.entities.UserSettingsEntity
@@ -72,10 +76,10 @@ import com.example.zhivoy.feature.main.home.AddWeightDialog
 import com.example.zhivoy.feature.main.home.AiChatDialog
 import com.example.zhivoy.feature.main.home.GoalsDialog
 import com.example.zhivoy.ui.components.GradientCard
-import com.example.zhivoy.ui.components.ModernBarChart
 import com.example.zhivoy.ui.components.ModernCard
 import com.example.zhivoy.ui.components.ModernOutlinedButton
 import com.example.zhivoy.ui.components.StatCard
+import com.example.zhivoy.ui.components.WeeklyLineChart
 import com.example.zhivoy.util.Calories
 import com.example.zhivoy.util.DateTime
 import com.example.zhivoy.util.Leveling
@@ -177,7 +181,6 @@ fun HomeScreen() {
     }
 
     var showGoals by remember { mutableStateOf(false) }
-    var weeklyTop by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
 
     // Квесты (состояние)
     val trainingsWeek by (if (userId != null) db.trainingDao().observeFrom(userId, today - 6) else kotlinx.coroutines.flow.flowOf(emptyList()))
@@ -190,6 +193,19 @@ fun HomeScreen() {
     val hasTrainingToday = trainingsWeek.any { it.dateEpochDay == today }
     val hasBookToday = books.any { DateTime.epochDayFromEpochMs(it.createdAtEpochMs) == today }
     val noSmokeToday = smokeStatus?.isActive == true // упрощенно: активен — значит "не курю"
+
+    // Вычисляем сожженные калории за сегодня
+    val caloriesBurnedFromTrainings = remember(trainingsWeek, today) {
+        trainingsWeek
+            .filter { it.dateEpochDay == today }
+            .sumOf { it.caloriesBurned.toLong() }
+            .toInt()
+    }
+    // Калории за ходьбу: примерно 0.04 ккал на шаг (для среднего человека)
+    val caloriesBurnedFromWalking = remember(stepsToday) {
+        (stepsToday * 0.04).toInt()
+    }
+    val totalCaloriesBurned = caloriesBurnedFromTrainings + caloriesBurnedFromWalking
 
     val waterGoal = 2000 // мл
     val waterDone = (waterToday ?: 0) >= waterGoal
@@ -244,26 +260,32 @@ fun HomeScreen() {
         }
     }
 
-    // Недельный топ по XP (локально по всем пользователям)
-    LaunchedEffect(userId) {
-        withContext(Dispatchers.IO) {
-            val from = today - 6
-            val top = db.xpDao().topUsersForRange(fromEpochDay = from, limit = 5)
-            val ids = top.map { it.userId }
-            val logins = db.userDao().getLoginsForIds(ids).associate { it.id to it.login }
-            weeklyTop = top.map { (logins[it.userId] ?: "User ${it.userId}") to it.total }
-        }
-    }
-
     var showAddFood by remember { mutableStateOf(false) }
     var showAddWeight by remember { mutableStateOf(false) }
     var showAddBook by remember { mutableStateOf(false) }
     var showAiChat by remember { mutableStateOf(false) }
 
     val openRouterApi = remember {
+        // ВАЖНО: используем Json с ignoreUnknownKeys, иначе ответ OpenRouter с лишними полями
+        // (id, created, model, usage и т.п.) будет падать при десериализации.
+        val json = Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+            encodeDefaults = false
+        }
+
+        val logging = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
+
+        val client = OkHttpClient.Builder()
+            .addInterceptor(logging)
+            .build()
+
         Retrofit.Builder()
             .baseUrl("https://openrouter.ai/api/v1/")
-            .addConverterFactory(Json.asConverterFactory("application/json".toMediaType()))
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(OpenRouterApi::class.java)
     }
@@ -455,7 +477,8 @@ fun HomeScreen() {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -533,6 +556,41 @@ fun HomeScreen() {
             }
 
             ModernCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Сожжено килокалорий",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "$totalCaloriesBurned ккал",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Ходьба: $caloriesBurnedFromWalking ккал • Тренировки: $caloriesBurnedFromTrainings ккал",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Icon(
+                        Icons.Default.LocalFireDepartment,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+            }
+
+            ModernCard {
                 Text(
                     text = "Цели сегодня",
                     style = MaterialTheme.typography.titleLarge,
@@ -574,42 +632,13 @@ fun HomeScreen() {
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                
-                Text(
-                    text = "Шаги",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                ModernBarChart(
-                    values = stepsWeek,
-                    labels = dayLabels,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                
-                Spacer(modifier = Modifier.height(20.dp))
-                
-                Text(
-                    text = "Калории",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                ModernBarChart(
-                    values = caloriesWeek,
-                    labels = dayLabels,
-                    color = MaterialTheme.colorScheme.secondary
-                )
 
-                Spacer(modifier = Modifier.height(20.dp))
-                
-                Text(
-                    text = "Опыт (XP)",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.tertiary
-                )
-                ModernBarChart(
-                    values = xpWeek,
+                WeeklyLineChart(
+                    values1 = stepsWeek,
+                    values2 = caloriesWeek,
                     labels = dayLabels,
-                    color = MaterialTheme.colorScheme.tertiary
+                    color1 = MaterialTheme.colorScheme.primary,
+                    color2 = MaterialTheme.colorScheme.secondary
                 )
             }
 
@@ -748,30 +777,6 @@ fun HomeScreen() {
                             contentDescription = null,
                             tint = if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
                             modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-            }
-
-            ModernCard {
-                Text(
-                    text = "Топ недели (XP)",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                if (weeklyTop.isEmpty()) {
-                    Text(
-                        text = "Пока нет данных",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    weeklyTop.forEachIndexed { idx, (name, total) ->
-                        Text(
-                            text = "${idx + 1}. $name — $total",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }

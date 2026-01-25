@@ -11,6 +11,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -28,6 +29,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
@@ -397,6 +401,160 @@ fun ModernBarChart(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
                     )
+                }
+            }
+        }
+    }
+}
+
+// Линейный график для двух рядов (например, шаги и калории) за неделю
+@Composable
+fun WeeklyLineChart(
+    values1: List<Int>,
+    values2: List<Int>,
+    labels: List<String>,
+    color1: Color = MaterialTheme.colorScheme.primary,
+    color2: Color = MaterialTheme.colorScheme.secondary,
+    modifier: Modifier = Modifier,
+    height: Dp = 180.dp
+) {
+    val maxValue = listOf(values1.maxOrNull() ?: 0, values2.maxOrNull() ?: 0).maxOrNull()?.coerceAtLeast(1) ?: 1
+    // Захватываем цвета в composable-контексте, чтобы не дергать MaterialTheme внутри Canvas
+    val axisColor = MaterialTheme.colorScheme.outlineVariant
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+    val textColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val lineColor1 = color1
+    val lineColor2 = color2
+
+    // Вычисляем красивые значения для оси Y (округленные)
+    val yStepCount = 4
+    val roundedMax = ((maxValue / 1000.0).toInt() + 1) * 1000 // Округляем до ближайшей тысячи
+    val yStep = roundedMax / yStepCount
+    val yValues = (0..yStepCount).map { it * yStep }
+
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Подписи значений слева (ось Y)
+            Box(
+                modifier = Modifier
+                    .width(40.dp)
+                    .height(height),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxHeight(),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    yValues.reversed().forEach { value ->
+                        Text(
+                            text = if (value >= 1000) "${value / 1000}к" else value.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = textColor,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            // График
+            Column(modifier = Modifier.weight(1f)) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(height)
+                ) {
+                    val chartPadding = 8.dp.toPx()
+                    val chartWidth = size.width - chartPadding * 2
+                    val chartHeight = size.height - chartPadding * 2
+                    val widthStep = if (labels.size > 1) chartWidth / (labels.size - 1) else 0f
+                    val bottom = size.height - chartPadding
+                    val top = chartPadding
+
+                    fun yFor(value: Int): Float {
+                        val fraction = value.toFloat() / roundedMax.toFloat()
+                        return bottom - (bottom - top) * fraction
+                    }
+
+                    fun Path.buildLine(values: List<Int>) {
+                        values.forEachIndexed { index, v ->
+                            val x = chartPadding + widthStep * index
+                            val y = yFor(v)
+                            if (index == 0) moveTo(x, y) else lineTo(x, y)
+                        }
+                    }
+
+                    // Сетка (горизонтальные линии)
+                    yValues.forEach { value ->
+                        val y = yFor(value)
+                        drawLine(
+                            color = gridColor,
+                            start = Offset(chartPadding, y),
+                            end = Offset(size.width - chartPadding, y),
+                            strokeWidth = 1f
+                        )
+                    }
+
+                    // Ось X
+                    drawLine(
+                        color = axisColor,
+                        start = Offset(chartPadding, bottom),
+                        end = Offset(size.width - chartPadding, bottom),
+                        strokeWidth = 2f
+                    )
+
+                    // Линия 1 (шаги) с точками
+                    val path1 = Path().apply { buildLine(values1) }
+                    drawPath(
+                        path = path1,
+                        color = lineColor1,
+                        style = Stroke(width = 3f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                    values1.forEachIndexed { index, _ ->
+                        val x = chartPadding + widthStep * index
+                        val y = yFor(values1[index])
+                        drawCircle(
+                            color = lineColor1,
+                            radius = 4f,
+                            center = Offset(x, y)
+                        )
+                    }
+
+                    // Линия 2 (калории) с точками
+                    val path2 = Path().apply { buildLine(values2) }
+                    drawPath(
+                        path = path2,
+                        color = lineColor2,
+                        style = Stroke(width = 3f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                    values2.forEachIndexed { index, _ ->
+                        val x = chartPadding + widthStep * index
+                        val y = yFor(values2[index])
+                        drawCircle(
+                            color = lineColor2,
+                            radius = 4f,
+                            center = Offset(x, y)
+                        )
+                    }
+                }
+
+                // Подписи по оси X (дни)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    labels.forEach { label ->
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = textColor
+                        )
+                    }
                 }
             }
         }
