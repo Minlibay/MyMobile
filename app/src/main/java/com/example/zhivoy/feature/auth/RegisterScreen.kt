@@ -36,8 +36,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
+import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.data.repository.AuthRepository
+import com.example.zhivoy.network.ApiClient
 import com.example.zhivoy.ui.components.ModernButton
 import com.example.zhivoy.ui.components.ModernOutlinedButton
 import com.example.zhivoy.ui.components.ModernTextField
@@ -51,7 +53,15 @@ fun RegisterScreen(
 ) {
     val context = LocalContext.current
     val sessionStore = LocalSessionStore.current
-    val authRepository = remember { AuthRepository(context, sessionStore) }
+    val db = LocalAppDatabase.current
+    val authRepository = remember { AuthRepository(
+        context,
+        sessionStore,
+        ApiClient.createProfileApi(sessionStore),
+        ApiClient.createUserSettingsApi(sessionStore),
+        db.profileDao(),
+        db.userSettingsDao(),
+    ) }
     val scope = rememberCoroutineScope()
 
     var login by rememberSaveable { mutableStateOf("") }

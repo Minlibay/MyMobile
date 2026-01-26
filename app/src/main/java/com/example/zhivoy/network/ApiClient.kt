@@ -4,6 +4,8 @@ import com.example.zhivoy.data.session.SessionStore
 import com.example.zhivoy.network.api.AdsApi
 import com.example.zhivoy.network.api.AuthApi
 import com.example.zhivoy.network.api.OpenRouterApi
+import com.example.zhivoy.network.api.ProfileApi
+import com.example.zhivoy.network.api.UserSettingsApi
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -58,6 +60,27 @@ object ApiClient {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(AdsApi::class.java)
+    }
+
+    fun createProfileApi(sessionStore: SessionStore): ProfileApi {
+        val okHttpClient = createOkHttpClient(sessionStore)
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(ProfileApi::class.java)
+    }
+
+    fun createUserSettingsApi(sessionStore: SessionStore): UserSettingsApi {
+        val okHttpClient = createOkHttpClient(sessionStore)
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(UserSettingsApi::class.java)
+    }
     }
 
     fun createOpenRouterApi(): OpenRouterApi {

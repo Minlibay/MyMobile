@@ -34,10 +34,8 @@ import com.example.zhivoy.ui.components.ModernCard
 import com.example.zhivoy.ui.components.ModernButton
 import com.example.zhivoy.ui.components.ModernTextField
 import com.example.zhivoy.util.DateTime
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.animation.core.*
@@ -47,11 +45,22 @@ import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import kotlin.math.pow
+import androidx.compose.ui.platform.LocalContext
+import com.example.zhivoy.network.ApiClient
+import java.time.Instant
 
 @Composable
 fun HealthScreen() {
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
+    val authRepository = remember { com.example.zhivoy.data.repository.AuthRepository(
+        LocalContext.current,
+        sessionStore,
+        com.example.zhivoy.network.ApiClient.createProfileApi(sessionStore),
+        com.example.zhivoy.network.ApiClient.createUserSettingsApi(sessionStore),
+        db.profileDao(),
+        db.userSettingsDao(),
+    ) }
     val session by sessionStore.session.collectAsState(initial = null)
     val userId = session?.userId
     val today = DateTime.epochDayNow()
@@ -64,7 +73,21 @@ fun HealthScreen() {
     val profileState = remember(userId) { mutableStateOf<com.example.zhivoy.data.entities.ProfileEntity?>(null) }
     LaunchedEffect(userId) {
         if (userId == null) return@LaunchedEffect
-        profileState.value = withContext(Dispatchers.IO) { db.profileDao().getByUserId(userId) }
+        authRepository.getProfile().fold(
+            onSuccess = { profileResponse ->
+                profileState.value = com.example.zhivoy.data.entities.ProfileEntity(
+                    id = 0, // Not used for remote profile
+                    userId = userId,
+                    heightCm = profileResponse.height_cm,
+                    weightKg = profileResponse.weight_kg,
+                    age = profileResponse.age,
+                    sex = profileResponse.sex,
+                    createdAtEpochMs = java.time.Instant.parse(profileResponse.created_at).toEpochMilli(),
+                    updatedAtEpochMs = java.time.Instant.parse(profileResponse.updated_at).toEpochMilli(),
+                )
+            },
+            onFailure = { /* Handle error or show a message */ }
+        )
     }
 
     val weight = latestWeight?.weightKg ?: profileState.value?.weightKg

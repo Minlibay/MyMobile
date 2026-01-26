@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from typing import List
 
 
 class RegisterRequest(BaseModel):
@@ -45,9 +46,56 @@ class AdsConfigResponse(BaseModel):
     units: dict[str, str]
 
 
+class ProfileRequest(BaseModel):
+    height_cm: int = Field(gt=0, le=300)
+    weight_kg: float = Field(gt=0, le=500)
+    age: int = Field(gt=0, le=150)
+    sex: str = Field(pattern="^(male|female)$")
 
 
+class ProfileResponse(ProfileRequest):
+    id: int
+    user_id: int
+    created_at: str
+    updated_at: str
 
+
+class UserSettingsRequest(BaseModel):
+    calorie_mode: str = Field(pattern="^(maintain|lose|gain)$")
+    step_goal: int = Field(gt=0)
+    calorie_goal_override: int | None = Field(None, gt=0)
+    reminders_enabled: bool = True
+
+
+class UserSettingsResponse(UserSettingsRequest):
+    id: int
+    user_id: int
+    updated_at: str
+
+
+class FamilyRequest(BaseModel):
+    name: str = Field(min_length=3, max_length=64)
+
+
+class FamilyMemberResponse(BaseModel):
+    user_id: int
+    login: str
+    joined_at: str
+
+
+class FamilyResponse(FamilyRequest):
+    id: int
+    admin_user_id: int
+    created_at: str
+    members: List[FamilyMemberResponse] = Field(default_factory=list)
+
+
+class InviteUserRequest(BaseModel):
+    login: str = Field(min_length=3, max_length=64)
+
+
+class JoinFamilyRequest(BaseModel):
+    family_name: str = Field(min_length=3, max_length=64)
 
 
 

@@ -57,8 +57,38 @@ def upgrade() -> None:
     op.create_index("ix_ad_units_network", "ad_units", ["network"])
     op.create_index("ix_ad_units_placement", "ad_units", ["placement"])
 
+    op.create_table(
+        "profiles",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False, unique=True),
+        sa.Column("height_cm", sa.Integer(), nullable=False),
+        sa.Column("weight_kg", sa.BigInteger(), nullable=False),
+        sa.Column("age", sa.Integer(), nullable=False),
+        sa.Column("sex", sa.String(length=16), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    )
+    op.create_index("ix_profiles_user_id", "profiles", ["user_id"])
+
+    op.create_table(
+        "user_settings",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False, unique=True),
+        sa.Column("calorie_mode", sa.String(length=16), nullable=False),
+        sa.Column("step_goal", sa.Integer(), nullable=False),
+        sa.Column("calorie_goal_override", sa.Integer(), nullable=True),
+        sa.Column("reminders_enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    )
+    op.create_index("ix_user_settings_user_id", "user_settings", ["user_id"])
 
 def downgrade() -> None:
+    op.drop_index("ix_user_settings_user_id", table_name="user_settings")
+    op.drop_table("user_settings")
+
+    op.drop_index("ix_profiles_user_id", table_name="profiles")
+    op.drop_table("profiles")
+
     op.drop_index("ix_ad_units_placement", table_name="ad_units")
     op.drop_index("ix_ad_units_network", table_name="ad_units")
     op.drop_table("ad_units")
@@ -70,6 +100,7 @@ def downgrade() -> None:
 
     op.drop_index("ix_users_login", table_name="users")
     op.drop_table("users")
+
 
 
 

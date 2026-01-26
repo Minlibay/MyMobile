@@ -20,12 +20,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
-import com.example.zhivoy.data.entities.ProfileEntity
 import com.example.zhivoy.data.repository.AuthRepository
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withContext
+import com.example.zhivoy.network.ApiClient
 
 @Composable
 fun SplashScreen(
@@ -36,7 +34,14 @@ fun SplashScreen(
     val context = LocalContext.current
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
-    val authRepository = remember { AuthRepository(context, sessionStore) }
+    val authRepository = remember { AuthRepository(
+        context,
+        sessionStore,
+        ApiClient.createProfileApi(sessionStore),
+        ApiClient.createUserSettingsApi(sessionStore),
+        db.profileDao(),
+        db.userSettingsDao(),
+    ) }
     val session by sessionStore.session.collectAsState(initial = null)
 
     LaunchedEffect(session) {
@@ -52,34 +57,11 @@ fun SplashScreen(
                     // Токен обновлен, получаем сессию снова
                     val newSession = sessionStore.session.first()
                     if (newSession != null) {
-                        // Пытаемся загрузить профиль с бекенда
+                        // Проверяем наличие профиля на бекенде
                         val profileResult = authRepository.getProfile()
                         profileResult.fold(
-                            onSuccess = { profileResponse ->
-                                // Сохраняем профиль локально
-                                withContext(Dispatchers.IO) {
-                                    val now = System.currentTimeMillis()
-                                    db.profileDao().upsert(
-                                        ProfileEntity(
-                                            userId = newSession.userId,
-                                            heightCm = profileResponse.height_cm,
-                                            weightKg = profileResponse.weight_kg,
-                                            age = profileResponse.age,
-                                            sex = profileResponse.sex,
-                                            createdAtEpochMs = now,
-                                            updatedAtEpochMs = now,
-                                        )
-                                    )
-                                }
-                                onGoMain()
-                            },
-                            onFailure = {
-                                // Профиль не найден на бекенде, проверяем локально
-                                val hasProfile = withContext(Dispatchers.IO) {
-                                    db.profileDao().getByUserId(newSession.userId) != null
-                                }
-                                if (hasProfile) onGoMain() else onGoOnboarding()
-                            }
+                            onSuccess = { _ -> onGoMain() },
+                            onFailure = { onGoOnboarding() }
                         )
                     } else {
                         onGoAuth()
@@ -98,34 +80,11 @@ fun SplashScreen(
             return@LaunchedEffect
         }
         
-        // Пытаемся загрузить профиль с бекенда
+        // Проверяем наличие профиля на бекенде
         val profileResult = authRepository.getProfile()
         profileResult.fold(
-            onSuccess = { profileResponse ->
-                // Сохраняем профиль локально
-                withContext(Dispatchers.IO) {
-                    val now = System.currentTimeMillis()
-                    db.profileDao().upsert(
-                        ProfileEntity(
-                            userId = session!!.userId,
-                            heightCm = profileResponse.height_cm,
-                            weightKg = profileResponse.weight_kg,
-                            age = profileResponse.age,
-                            sex = profileResponse.sex,
-                            createdAtEpochMs = now,
-                            updatedAtEpochMs = now,
-                        )
-                    )
-                }
-                onGoMain()
-            },
-            onFailure = {
-                // Профиль не найден на бекенде, проверяем локально
-                val hasProfile = withContext(Dispatchers.IO) {
-                    db.profileDao().getByUserId(session!!.userId) != null
-                }
-                if (hasProfile) onGoMain() else onGoOnboarding()
-            }
+            onSuccess = { _ -> onGoMain() },
+            onFailure = { onGoOnboarding() }
         )
     }
 

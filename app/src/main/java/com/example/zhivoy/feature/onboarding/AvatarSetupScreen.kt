@@ -28,15 +28,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
-import com.example.zhivoy.data.entities.ProfileEntity
 import com.example.zhivoy.data.repository.AuthRepository
 import com.example.zhivoy.ui.components.ModernButton
 import com.example.zhivoy.ui.components.ModernTextField
 import com.example.zhivoy.ui.theme.FitnessGradientEnd
 import com.example.zhivoy.ui.theme.FitnessGradientStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.example.zhivoy.network.ApiClient
 import kotlin.math.pow
 
 @Composable
@@ -46,7 +44,14 @@ fun AvatarSetupScreen(
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
     val context = LocalContext.current
-    val authRepository = remember { AuthRepository(context, sessionStore) }
+    val authRepository = remember { AuthRepository(
+        context,
+        sessionStore,
+        ApiClient.createProfileApi(sessionStore),
+        ApiClient.createUserSettingsApi(sessionStore),
+        db.profileDao(),
+        db.userSettingsDao(),
+    ) }
     val scope = rememberCoroutineScope()
 
     var heightCm by rememberSaveable { mutableStateOf("") }
@@ -197,22 +202,7 @@ fun AvatarSetupScreen(
                             // Сохраняем профиль на бекенд
                             val profileResult = authRepository.updateProfile(h, w, a, sex)
                             profileResult.fold(
-                                onSuccess = { profileResponse ->
-                                    // Сохраняем профиль локально
-                                    withContext(Dispatchers.IO) {
-                                        val now = System.currentTimeMillis()
-                                        db.profileDao().upsert(
-                                            ProfileEntity(
-                                                userId = userId,
-                                                heightCm = profileResponse.height_cm,
-                                                weightKg = profileResponse.weight_kg,
-                                                age = profileResponse.age,
-                                                sex = profileResponse.sex,
-                                                createdAtEpochMs = now,
-                                                updatedAtEpochMs = now,
-                                            ),
-                                        )
-                                    }
+                                onSuccess = { _ ->
                                     loading = false
                                     onDone()
                                 },

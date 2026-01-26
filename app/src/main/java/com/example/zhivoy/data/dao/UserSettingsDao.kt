@@ -17,7 +17,11 @@ interface UserSettingsDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: UserSettingsEntity): Long
+
+    @Query("DELETE FROM user_settings WHERE userId = :userId")
+    suspend fun delete(userId: Long)
 }
+
 
 
 

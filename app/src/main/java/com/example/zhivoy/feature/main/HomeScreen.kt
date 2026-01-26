@@ -68,7 +68,6 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import kotlinx.serialization.json.Json
 import com.example.zhivoy.data.entities.FoodEntryEntity
-import com.example.zhivoy.data.entities.UserSettingsEntity
 import com.example.zhivoy.data.entities.WeightEntryEntity
 import com.example.zhivoy.feature.main.brain.AddBookDialog
 import com.example.zhivoy.feature.main.home.AddFoodDialog
@@ -83,16 +82,23 @@ import com.example.zhivoy.ui.components.WeeklyLineChart
 import com.example.zhivoy.util.Calories
 import com.example.zhivoy.util.DateTime
 import com.example.zhivoy.util.Leveling
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.time.format.TextStyle
 import java.util.Locale
+import java.time.Instant
 
 @Composable
 fun HomeScreen() {
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
+    val authRepository = remember { com.example.zhivoy.data.repository.AuthRepository(
+        androidx.compose.ui.platform.LocalContext.current,
+        sessionStore,
+        com.example.zhivoy.network.ApiClient.createProfileApi(sessionStore),
+        com.example.zhivoy.network.ApiClient.createUserSettingsApi(sessionStore),
+        db.profileDao(),
+        db.userSettingsDao(),
+    ) }
     val session by sessionStore.session.collectAsState(initial = null)
     val userId = session?.userId
     val today = DateTime.epochDayNow()
@@ -135,28 +141,39 @@ fun HomeScreen() {
     val levelInfo = remember(xpTotal) { Leveling.levelInfo(xpTotal) }
 
     // Settings + profile -> goals
-    val settings by (if (userId != null) db.userSettingsDao().observe(userId) else kotlinx.coroutines.flow.flowOf(null))
-        .collectAsState(initial = null)
+    val settings = remember(userId) { mutableStateOf<com.example.zhivoy.data.entities.UserSettingsEntity?>(null) }
     val profileState = remember(userId) { mutableStateOf<com.example.zhivoy.data.entities.ProfileEntity?>(null) }
     LaunchedEffect(userId) {
         if (userId == null) return@LaunchedEffect
-        profileState.value = withContext(Dispatchers.IO) { db.profileDao().getByUserId(userId) }
-        // init defaults
-        withContext(Dispatchers.IO) {
-            val existing = db.userSettingsDao().get(userId)
-            if (existing == null) {
-                db.userSettingsDao().upsert(
-                    UserSettingsEntity(
-                        userId = userId,
-                        calorieMode = "maintain",
-                        stepGoal = 8000,
-                        calorieGoalOverride = null,
-                        remindersEnabled = true,
-                        updatedAtEpochMs = System.currentTimeMillis(),
-                    ),
+        authRepository.getProfile().fold(
+            onSuccess = { profileResponse ->
+                profileState.value = com.example.zhivoy.data.entities.ProfileEntity(
+                    id = 0, // Not used for remote profile
+                    userId = userId,
+                    heightCm = profileResponse.height_cm,
+                    weightKg = profileResponse.weight_kg,
+                    age = profileResponse.age,
+                    sex = profileResponse.sex,
+                    createdAtEpochMs = java.time.Instant.parse(profileResponse.created_at).toEpochMilli(),
+                    updatedAtEpochMs = java.time.Instant.parse(profileResponse.updated_at).toEpochMilli(),
                 )
-            }
-        }
+            },
+            onFailure = { /* Handle error or show a message */ }
+        )
+        authRepository.getUserSettings().fold(
+            onSuccess = { userSettingsResponse ->
+                settings.value = com.example.zhivoy.data.entities.UserSettingsEntity(
+                    id = 0, // Not used for remote
+                    userId = userId,
+                    calorieMode = userSettingsResponse.calorie_mode,
+                    stepGoal = userSettingsResponse.step_goal,
+                    calorieGoalOverride = userSettingsResponse.calorie_goal_override,
+                    remindersEnabled = userSettingsResponse.reminders_enabled,
+                    updatedAtEpochMs = java.time.Instant.parse(userSettingsResponse.updated_at).toEpochMilli(),
+                )
+            },
+            onFailure = { /* Handle error or show a message */ }
+        )
     }
 
     val remindersEnabled = settings?.remindersEnabled ?: true
@@ -424,19 +441,25 @@ fun HomeScreen() {
             onSave = { newStepGoal, newMode, override, newReminders ->
                 if (userId == null) return@GoalsDialog
                 scope.launch {
-                    withContext(Dispatchers.IO) {
-                        db.userSettingsDao().upsert(
-                            UserSettingsEntity(
-                                id = settings?.id ?: 0,
+                    authRepository.updateUserSettings(
+                        calorieMode = newMode,
+                        stepGoal = newStepGoal,
+                        calorieGoalOverride = override,
+                        remindersEnabled = newReminders,
+                    ).fold(
+                        onSuccess = { updatedSettings ->
+                            settings.value = com.example.zhivoy.data.entities.UserSettingsEntity(
+                                id = updatedSettings.id,
                                 userId = userId,
-                                calorieMode = newMode,
-                                stepGoal = newStepGoal,
-                                calorieGoalOverride = override,
-                                remindersEnabled = newReminders,
-                                updatedAtEpochMs = System.currentTimeMillis(),
-                            ),
-                        )
-                    }
+                                calorieMode = updatedSettings.calorie_mode,
+                                stepGoal = updatedSettings.step_goal,
+                                calorieGoalOverride = updatedSettings.calorie_goal_override,
+                                remindersEnabled = updatedSettings.reminders_enabled,
+                                updatedAtEpochMs = java.time.Instant.parse(updatedSettings.updated_at).toEpochMilli(),
+                            )
+                        },
+                        onFailure = { /* Handle error */ }
+                    )
                 }
                 showGoals = false
             },

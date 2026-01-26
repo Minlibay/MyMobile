@@ -42,16 +42,14 @@ import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
-import com.example.zhivoy.data.entities.ProfileEntity
 import com.example.zhivoy.data.repository.AuthRepository
+import com.example.zhivoy.network.ApiClient
 import com.example.zhivoy.ui.components.ModernButton
 import com.example.zhivoy.ui.components.ModernOutlinedButton
 import com.example.zhivoy.ui.components.ModernTextField
 import com.example.zhivoy.ui.theme.FitnessGradientEnd
 import com.example.zhivoy.ui.theme.FitnessGradientStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 fun LoginScreen(
@@ -62,7 +60,14 @@ fun LoginScreen(
     val context = LocalContext.current
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
-    val authRepository = remember { AuthRepository(context, sessionStore) }
+    val authRepository = remember { AuthRepository(
+        context,
+        sessionStore,
+        ApiClient.createProfileApi(sessionStore),
+        ApiClient.createUserSettingsApi(sessionStore),
+        db.profileDao(),
+        db.userSettingsDao(),
+    ) }
     val scope = rememberCoroutineScope()
 
     var loginOrEmail by rememberSaveable { mutableStateOf("") }
@@ -93,31 +98,8 @@ fun LoginScreen(
                     if (userId != null) {
                         val profileResult = authRepository.getProfile()
                         profileResult.fold(
-                            onSuccess = { profileResponse ->
-                                // Сохраняем профиль локально
-                                withContext(Dispatchers.IO) {
-                                    val now = System.currentTimeMillis()
-                                    db.profileDao().upsert(
-                                        ProfileEntity(
-                                            userId = userId,
-                                            heightCm = profileResponse.height_cm,
-                                            weightKg = profileResponse.weight_kg,
-                                            age = profileResponse.age,
-                                            sex = profileResponse.sex,
-                                            createdAtEpochMs = now,
-                                            updatedAtEpochMs = now,
-                                        )
-                                    )
-                                }
-                                onLoggedIn()
-                            },
-                            onFailure = {
-                                // Профиль не найден на бекенде, проверяем локально
-                                val hasProfile = withContext(Dispatchers.IO) {
-                                    db.profileDao().getByUserId(userId) != null
-                                }
-                                if (hasProfile) onLoggedIn() else onNeedOnboarding()
-                            }
+                            onSuccess = { _ -> onLoggedIn() },
+                            onFailure = { onNeedOnboarding() }
                         )
                     } else {
                         onNeedOnboarding()

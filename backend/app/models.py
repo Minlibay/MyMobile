@@ -51,8 +51,70 @@ class AdUnit(Base):
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
 
 
+class Profile(Base):
+    __tablename__ = "profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    height_cm: Mapped[int] = mapped_column(Integer)
+    weight_kg: Mapped[float] = mapped_column(BigInteger)
+    age: Mapped[int] = mapped_column(Integer)
+    sex: Mapped[str] = mapped_column(String(16)) # "male" | "female"
+
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+
+    user: Mapped["User"] = relationship(back_populates="profile")
 
 
+User.profile = relationship("Profile", back_populates="user", uselist=False)
+
+
+class UserSettings(Base):
+    __tablename__ = "user_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    calorie_mode: Mapped[str] = mapped_column(String(16)) # "maintain" | "lose" | "gain"
+    step_goal: Mapped[int] = mapped_column(Integer)
+    calorie_goal_override: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reminders_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+
+    user: Mapped["User"] = relationship(back_populates="user_settings")
+
+
+User.user_settings = relationship("UserSettings", back_populates="user", uselist=False)
+
+
+class Family(Base):
+    __tablename__ = "families"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    admin_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+
+    members: Mapped[list["FamilyMember"]] = relationship(back_populates="family", cascade="all, delete-orphan")
+    admin: Mapped[User] = relationship("User", foreign_keys=[admin_user_id])
+
+
+class FamilyMember(Base):
+    __tablename__ = "family_members"
+    __table_args__ = (
+        UniqueConstraint("family_id", "user_id", name="uq_family_members_family_id_user_id"),
+    )
+
+    family_id: Mapped[int] = mapped_column(ForeignKey("families.id"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    joined_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+
+    family: Mapped[Family] = relationship(back_populates="members")
+    user: Mapped[User] = relationship(back_populates="family_members")
+
+
+User.family_members = relationship("FamilyMember", back_populates="user", cascade="all, delete-orphan")
 
 
 

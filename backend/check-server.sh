@@ -29,3 +29,4 @@ docker-compose exec -T postgres psql -U zhivoy -d zhivoy -c "SELECT COUNT(*) FRO
 
 
 
+
