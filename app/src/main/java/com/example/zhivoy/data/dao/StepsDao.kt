@@ -23,6 +23,9 @@ interface StepsDao {
 
     @Query("SELECT dateEpochDay, steps as value FROM step_entries WHERE userId = :userId AND dateEpochDay >= :start AND dateEpochDay <= :end")
     fun observeInRange(userId: Long, start: Int, end: Int): Flow<List<com.example.zhivoy.data.model.DayValue>>
+
+    @Query("SELECT * FROM step_entries WHERE userId = :userId ORDER BY dateEpochDay DESC")
+    fun observeAll(userId: Long): Flow<List<StepEntryEntity>>
 }
 
 

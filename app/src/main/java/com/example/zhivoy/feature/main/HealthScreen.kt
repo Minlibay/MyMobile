@@ -57,14 +57,17 @@ fun HealthScreen() {
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
     val context = LocalContext.current
-    val authRepository = remember { com.example.zhivoy.data.repository.AuthRepository(
-        context,
-        sessionStore,
-        ApiClient.createProfileApi(sessionStore),
-        ApiClient.createUserSettingsApi(sessionStore),
-        db.profileDao(),
-        db.userSettingsDao(),
-    ) }
+    val authRepository = remember(context, sessionStore, db) { 
+        com.example.zhivoy.data.repository.AuthRepository(
+            context,
+            sessionStore,
+            com.example.zhivoy.network.ApiClient.createProfileApi(sessionStore),
+            com.example.zhivoy.network.ApiClient.createUserSettingsApi(sessionStore),
+            db.profileDao(),
+            db.userSettingsDao(),
+            com.example.zhivoy.data.repository.SyncRepository(sessionStore, db),
+        )
+    }
     val session by sessionStore.session.collectAsState(initial = null)
     val userId = session?.userId
     val today = DateTime.epochDayNow()

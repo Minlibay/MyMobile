@@ -1600,7 +1600,7 @@ def sync_batch(
     return SyncBatchResponse(processed=processed, failed=failed, errors=errors)
 
 
-@app.get("/admin/settings", response_model=AdminSettingsResponse)
+@app.get("/admin/api/settings", response_model=AdminSettingsResponse)
 def get_admin_settings(
     db: Session = Depends(get_db),
 ) -> AdminSettingsResponse:
@@ -1623,7 +1623,7 @@ def get_admin_settings(
     )
 
 
-@app.put("/admin/settings", response_model=AdminSettingsResponse)
+@app.put("/admin/api/settings", response_model=AdminSettingsResponse)
 def update_admin_settings(
     req: AdminSettingsRequest,
     db: Session = Depends(get_db),

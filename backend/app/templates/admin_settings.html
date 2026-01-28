@@ -92,7 +92,7 @@
         // Загрузка текущих настроек
         async function loadSettings() {
             try {
-                const response = await fetch('/admin/settings');
+                const response = await fetch('/admin/api/settings');
                 const data = await response.json();
                 
                 document.getElementById('openrouter_api_key').value = data.openrouter_api_key || '';
@@ -111,7 +111,7 @@
             const model = document.getElementById('openrouter_model').value.trim();
             
             try {
-                const response = await fetch('/admin/settings', {
+                const response = await fetch('/admin/api/settings', {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -147,7 +147,7 @@
             showResult('Проверка соединения...', 'info');
             
             try {
-                const response = await fetch('/admin/settings', {
+                const response = await fetch('/admin/api/settings', {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',

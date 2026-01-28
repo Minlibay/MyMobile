@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.encodeToJsonElement
 
 class SyncRepository(
     private val sessionStore: SessionStore,
@@ -45,10 +47,10 @@ class SyncRepository(
                         SyncBatchItemDto(
                             entity_type = "water",
                             action = "create",
-                            payload = mapOf(
+                            payload = json.encodeToJsonElement(mapOf(
                                 "date_epoch_day" to water.dateEpochDay,
                                 "amount_ml" to water.amountMl,
-                            ),
+                            )),
                         )
                     )
                 }
@@ -59,11 +61,11 @@ class SyncRepository(
                         SyncBatchItemDto(
                             entity_type = "food",
                             action = "create",
-                            payload = mapOf(
+                            payload = json.encodeToJsonElement(mapOf(
                                 "date_epoch_day" to food.dateEpochDay,
                                 "title" to food.title,
                                 "calories" to food.calories,
-                            ),
+                            )),
                         )
                     )
                 }
@@ -74,13 +76,13 @@ class SyncRepository(
                         SyncBatchItemDto(
                             entity_type = "training",
                             action = "create",
-                            payload = mapOf(
+                            payload = json.encodeToJsonElement(mapOf(
                                 "date_epoch_day" to training.dateEpochDay,
                                 "title" to training.title,
                                 "description" to training.description,
                                 "calories_burned" to training.caloriesBurned,
                                 "duration_minutes" to training.durationMinutes,
-                            ),
+                            )),
                         )
                     )
                 }
@@ -91,11 +93,11 @@ class SyncRepository(
                         SyncBatchItemDto(
                             entity_type = "book",
                             action = "create",
-                            payload = mapOf(
+                            payload = json.encodeToJsonElement(mapOf(
                                 "title" to book.title,
                                 "author" to book.author,
                                 "total_pages" to book.totalPages,
-                            ),
+                            )),
                         )
                     )
                 }
@@ -106,12 +108,12 @@ class SyncRepository(
                         SyncBatchItemDto(
                             entity_type = "xp_event",
                             action = "create",
-                            payload = mapOf(
+                            payload = json.encodeToJsonElement(mapOf(
                                 "date_epoch_day" to xp.dateEpochDay,
                                 "type" to xp.type,
                                 "points" to xp.points,
                                 "note" to xp.note,
-                            ),
+                            )),
                         )
                     )
                 }
@@ -122,10 +124,10 @@ class SyncRepository(
                         SyncBatchItemDto(
                             entity_type = "weight",
                             action = "upsert",
-                            payload = mapOf(
+                            payload = json.encodeToJsonElement(mapOf(
                                 "date_epoch_day" to weight.dateEpochDay,
                                 "weight_kg" to weight.weightKg,
-                            ),
+                            )),
                         )
                     )
                 }
@@ -136,12 +138,12 @@ class SyncRepository(
                         SyncBatchItemDto(
                             entity_type = "smoke_status",
                             action = "upsert",
-                            payload = mapOf(
-                                "started_at" to smoke.startedAt,
+                            payload = json.encodeToJsonElement(mapOf(
+                                "started_at" to smoke.startedAtEpochMs,
                                 "is_active" to smoke.isActive,
                                 "pack_price" to smoke.packPrice,
                                 "packs_per_day" to smoke.packsPerDay,
-                            ),
+                            )),
                         )
                     )
                 }
@@ -152,10 +154,10 @@ class SyncRepository(
                         SyncBatchItemDto(
                             entity_type = "steps",
                             action = "upsert",
-                            payload = mapOf(
+                            payload = json.encodeToJsonElement(mapOf(
                                 "date_epoch_day" to step.dateEpochDay,
                                 "steps" to step.value,
-                            ),
+                            )),
                         )
                     )
                 }
@@ -180,7 +182,7 @@ class SyncRepository(
                 if (pending.isEmpty()) return@withContext Result.success(0)
 
                 val items = pending.map { queue ->
-                    val payload = json.decodeFromString<Map<String, Any>>(queue.payload)
+                    val payload = json.decodeFromString<JsonElement>(queue.payload)
                     SyncBatchItemDto(
                         entity_type = queue.entityType,
                         action = queue.action,

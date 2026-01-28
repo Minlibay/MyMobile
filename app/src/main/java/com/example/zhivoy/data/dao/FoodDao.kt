@@ -29,6 +29,9 @@ interface FoodDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(entry: FoodEntryEntity): Long
 
+    @Query("SELECT * FROM food_entries WHERE userId = :userId ORDER BY dateEpochDay DESC")
+    fun observeAll(userId: Long): Flow<List<FoodEntryEntity>>
+
     @Query("DELETE FROM food_entries WHERE id = :id")
     suspend fun deleteById(id: Long)
 

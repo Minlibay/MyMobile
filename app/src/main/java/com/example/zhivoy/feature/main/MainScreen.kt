@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.data.repository.AuthRepository
+import com.example.zhivoy.data.repository.SyncRepository
 import com.example.zhivoy.network.ApiClient
 import com.example.zhivoy.feature.main.profile.AchievementsScreen
 import com.example.zhivoy.steps.StepsPermissionAndTracking
@@ -66,14 +67,17 @@ fun MainScreen(
     val context = LocalContext.current
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
-    val authRepository = remember { AuthRepository(
-        context,
-        sessionStore,
-        ApiClient.createProfileApi(sessionStore),
-        ApiClient.createUserSettingsApi(sessionStore),
-        db.profileDao(),
-        db.userSettingsDao(),
-    ) }
+    val authRepository = remember(context, sessionStore, db) { 
+        AuthRepository(
+            context,
+            sessionStore,
+            ApiClient.createProfileApi(sessionStore),
+            ApiClient.createUserSettingsApi(sessionStore),
+            db.profileDao(),
+            db.userSettingsDao(),
+            SyncRepository(sessionStore, db),
+        )
+    }
     val scope = rememberCoroutineScope()
     var showMenu by remember { mutableStateOf(false) }
     var showAchievements by remember { mutableStateOf(false) }

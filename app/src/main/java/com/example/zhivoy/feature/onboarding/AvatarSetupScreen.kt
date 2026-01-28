@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.data.repository.AuthRepository
+import com.example.zhivoy.data.repository.SyncRepository
 import com.example.zhivoy.ui.components.ModernButton
 import com.example.zhivoy.ui.components.ModernTextField
 import com.example.zhivoy.ui.theme.FitnessGradientEnd
@@ -44,14 +45,17 @@ fun AvatarSetupScreen(
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
     val context = LocalContext.current
-    val authRepository = remember { AuthRepository(
-        context,
-        sessionStore,
-        ApiClient.createProfileApi(sessionStore),
-        ApiClient.createUserSettingsApi(sessionStore),
-        db.profileDao(),
-        db.userSettingsDao(),
-    ) }
+    val authRepository = remember(context, sessionStore, db) { 
+        AuthRepository(
+            context,
+            sessionStore,
+            ApiClient.createProfileApi(sessionStore),
+            ApiClient.createUserSettingsApi(sessionStore),
+            db.profileDao(),
+            db.userSettingsDao(),
+            SyncRepository(sessionStore, db),
+        )
+    }
     val scope = rememberCoroutineScope()
 
     var heightCm by rememberSaveable { mutableStateOf("") }

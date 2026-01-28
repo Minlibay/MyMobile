@@ -24,7 +24,7 @@ class AiChatRepository(
     private val openRouterApi: OpenRouterApi,
     private val foodDao: FoodDao,
     private val foodRemoteRepository: FoodRemoteRepository,
-    private val adminSettingsRepository: AdminSettingsRepository,
+    val adminSettingsRepository: AdminSettingsRepository,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -33,8 +33,10 @@ class AiChatRepository(
         return if (settings.isSuccess) {
             val apiKey = settings.getOrNull()?.openrouter_api_key ?: ""
             val model = settings.getOrNull()?.openrouter_model ?: "anthropic/claude-3-haiku"
+            android.util.Log.d("AiChatRepository", "API config: apiKey=${apiKey.take(10)}..., model=$model")
             Pair(apiKey, model)
         } else {
+            android.util.Log.e("AiChatRepository", "Failed to get settings: ${settings.exceptionOrNull()?.message}")
             Pair("", "anthropic/claude-3-haiku") // Fallback
         }
     }

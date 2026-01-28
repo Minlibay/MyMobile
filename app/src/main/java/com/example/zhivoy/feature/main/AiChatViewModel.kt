@@ -39,7 +39,15 @@ class AiChatViewModel(
 
     init {
         viewModelScope.launch {
-            val settings = repository.getSettings()
+            val settings = repository.adminSettingsRepository.getSettings()
+            _isConfigured.value = settings.isSuccess && 
+                settings.getOrNull()?.openrouter_api_key?.isNotBlank() == true
+        }
+    }
+
+    fun refreshSettings() {
+        viewModelScope.launch {
+            val settings = repository.adminSettingsRepository.getSettings()
             _isConfigured.value = settings.isSuccess && 
                 settings.getOrNull()?.openrouter_api_key?.isNotBlank() == true
         }

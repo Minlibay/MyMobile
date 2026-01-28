@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.data.repository.AuthRepository
+import com.example.zhivoy.data.repository.SyncRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import com.example.zhivoy.network.ApiClient
@@ -34,14 +35,17 @@ fun SplashScreen(
     val context = LocalContext.current
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
-    val authRepository = remember { AuthRepository(
-        context,
-        sessionStore,
-        ApiClient.createProfileApi(sessionStore),
-        ApiClient.createUserSettingsApi(sessionStore),
-        db.profileDao(),
-        db.userSettingsDao(),
-    ) }
+    val authRepository = remember(context, sessionStore, db) { 
+        AuthRepository(
+            context,
+            sessionStore,
+            ApiClient.createProfileApi(sessionStore),
+            ApiClient.createUserSettingsApi(sessionStore),
+            db.profileDao(),
+            db.userSettingsDao(),
+            SyncRepository(sessionStore, db),
+        )
+    }
     val session by sessionStore.session.collectAsState(initial = null)
 
     LaunchedEffect(session) {

@@ -555,28 +555,34 @@ fun HomeScreen() {
     }
 
     if (showAiChat) {
-        if (aiChatViewModel != null && aiChatViewModel.isConfigured.collectAsState(initial = false).value) {
-            AiChatDialog(
-                viewModel = aiChatViewModel,
-                onDismiss = { showAiChat = false }
-            )
-        } else {
-            // Показать сообщение, что нужно настроить API ключ
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { showAiChat = false },
-                confirmButton = {
-                    androidx.compose.material3.TextButton(onClick = { showAiChat = false }) {
-                        androidx.compose.material3.Text("Ок")
+        if (aiChatViewModel != null) {
+            // Refresh settings when opening AI chat
+            LaunchedEffect(showAiChat) {
+                aiChatViewModel.refreshSettings()
+            }
+            if (aiChatViewModel.isConfigured.collectAsState(initial = false).value) {
+                AiChatDialog(
+                    viewModel = aiChatViewModel,
+                    onDismiss = { showAiChat = false }
+                )
+            } else {
+                // Показать сообщение, что нужно настроить API ключ
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showAiChat = false },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = { showAiChat = false }) {
+                            androidx.compose.material3.Text("Ок")
+                        }
+                    },
+                    title = { androidx.compose.material3.Text("API ключ не настроен") },
+                    text = {
+                        androidx.compose.material3.Text(
+                            "Для использования ИИ помощника нужно настроить OpenRouter API ключ в админке: " +
+                                "http://45.134.12.54/admin/settings"
+                        )
                     }
-                },
-                title = { androidx.compose.material3.Text("API ключ не настроен") },
-                text = {
-                    androidx.compose.material3.Text(
-                        "Для использования ИИ помощника нужно настроить OpenRouter API ключ в админке: " +
-                            "http://45.134.12.54/admin/settings"
-                    )
-                }
-            )
+                )
+            }
         }
     }
 
@@ -976,4 +982,3 @@ fun HomeScreen() {
         )
     }
 }
-

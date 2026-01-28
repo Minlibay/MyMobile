@@ -32,6 +32,9 @@ interface WeightDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entry: WeightEntryEntity)
+
+    @Query("SELECT * FROM weight_entries WHERE userId = :userId AND dateEpochDay >= :start AND dateEpochDay <= :end ORDER BY dateEpochDay DESC")
+    fun observeInRange(userId: Long, start: Int, end: Int): Flow<List<WeightEntryEntity>>
 }
 
 

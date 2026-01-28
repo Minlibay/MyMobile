@@ -15,6 +15,9 @@ interface WaterDao {
     @Query("SELECT * FROM water_entries WHERE userId = :userId AND dateEpochDay = :date")
     suspend fun getEntriesForDay(userId: Long, date: Int): List<WaterEntryEntity>
     
+    @Query("SELECT * FROM water_entries WHERE userId = :userId ORDER BY dateEpochDay DESC")
+    fun observeAll(userId: Long): Flow<List<WaterEntryEntity>>
+    
     @Query("DELETE FROM water_entries WHERE userId = :userId AND dateEpochDay = :date")
     suspend fun clearDay(userId: Long, date: Int)
 }
