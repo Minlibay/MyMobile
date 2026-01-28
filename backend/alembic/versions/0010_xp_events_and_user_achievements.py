@@ -1,6 +1,6 @@
 """xp_events_and_user_achievements
 
-Revision ID: 0010_xp_events_and_user_achievements
+Revision ID: 0010_xp
 Revises: 0009_book_entries
 Create Date: 2026-01-28
 
@@ -11,7 +11,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0010_xp_events_and_user_achievements"
+revision = "0010_xp"
 down_revision = "0009_book_entries"
 branch_labels = None
 depends_on = None
