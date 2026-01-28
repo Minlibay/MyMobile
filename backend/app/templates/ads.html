@@ -2,21 +2,65 @@
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-3">
   <div>
-    <h1 class="h4 m-0"><i class="bi bi-badge-ad"></i> Рекламные блоки</h1>
-    <div class="muted small">Управление `ad_units` (placements / ids / enabled / версии).</div>
+    <h1 class="h4 m-0"><i class="bi bi-badge-ad"></i> Реклама</h1>
+    <div class="muted small">Настройка Appodeal + управление рекламными плейсментами (ad_units).</div>
   </div>
-  <a class="btn btn-sm btn-outline-light" href="/admin/integration"><i class="bi bi-plug"></i> Интеграция</a>
+  <div class="d-flex gap-2">
+    <a class="btn btn-sm btn-outline-light" href="/admin/integration"><i class="bi bi-plug"></i> Интеграция</a>
+    <a class="btn btn-sm btn-outline-light" href="/docs" target="_blank"><i class="bi bi-braces"></i> API</a>
+  </div>
 </div>
 
 <div class="row g-3">
   <div class="col-12 col-lg-5">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h2 class="h6">Добавить / обновить</h2>
+        <h2 class="h6 mb-3"><i class="bi bi-rocket-takeoff"></i> Appodeal</h2>
+        <form method="post" action="/admin/ads/appodeal" class="row g-2">
+          <div class="col-12">
+            <label class="form-label">App Key</label>
+            <input class="form-control" name="appodeal_app_key" placeholder="APP_KEY" value="{{ settings.appodeal_app_key or '' }}" />
+            <div class="small muted mt-1">Ключ приложения из кабинета Appodeal. Уходит в Android через <code>/ads/config</code>.</div>
+          </div>
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="appodeal_enabled" name="appodeal_enabled" {% if settings and settings.appodeal_enabled %}checked{% endif %}>
+              <label class="form-check-label" for="appodeal_enabled">Включить Appodeal</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="appodeal_banner_enabled" name="appodeal_banner_enabled" {% if settings is none or settings.appodeal_banner_enabled %}checked{% endif %}>
+              <label class="form-check-label" for="appodeal_banner_enabled">Banners</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="appodeal_interstitial_enabled" name="appodeal_interstitial_enabled" {% if settings is none or settings.appodeal_interstitial_enabled %}checked{% endif %}>
+              <label class="form-check-label" for="appodeal_interstitial_enabled">Interstitial</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="appodeal_rewarded_enabled" name="appodeal_rewarded_enabled" {% if settings is none or settings.appodeal_rewarded_enabled %}checked{% endif %}>
+              <label class="form-check-label" for="appodeal_rewarded_enabled">Rewarded</label>
+            </div>
+          </div>
+          <div class="col-12 d-grid mt-2">
+            <button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> Сохранить Appodeal</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mt-3">
+      <div class="card-body">
+        <h2 class="h6 mb-3"><i class="bi bi-grid"></i> Плейсменты (ad_units)</h2>
         <form method="post" action="/admin/ads/upsert" class="row g-2">
           <div class="col-12">
             <label class="form-label">Network</label>
-            <input class="form-control" name="network" placeholder="yandex" required />
+            <input class="form-control" name="network" placeholder="appodeal" required />
+            <div class="small muted mt-1">Например: <code>appodeal</code>.</div>
           </div>
           <div class="col-12">
             <label class="form-label">Placement</label>
@@ -24,11 +68,11 @@
           </div>
           <div class="col-12">
             <label class="form-label">Ad Unit ID</label>
-            <input class="form-control" name="ad_unit_id" placeholder="R-M-XXXXXX-YY" required />
+            <input class="form-control" name="ad_unit_id" placeholder="placement_or_id" required />
           </div>
           <div class="col-12">
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" name="enabled" id="enabled" checked>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" name="enabled" id="enabled" checked>
               <label class="form-check-label" for="enabled">Enabled</label>
             </div>
           </div>
@@ -41,9 +85,9 @@
             <input class="form-control" name="android_max_version" inputmode="numeric" />
           </div>
           <div class="col-12 d-grid mt-2">
-            <button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> Сохранить</button>
+            <button class="btn btn-outline-light" type="submit"><i class="bi bi-plus-circle"></i> Добавить / обновить</button>
           </div>
-          <div class="col-12 small muted">Если `network+placement` уже существует — запись обновится.</div>
+          <div class="col-12 small muted">Если <code>network+placement</code> уже существует — запись обновится.</div>
         </form>
       </div>
     </div>

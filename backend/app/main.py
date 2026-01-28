@@ -278,6 +278,7 @@ def admin_ads(request: Request, db: Session = Depends(get_db)):
         return guard
     admin_user = guard
     ads = db.execute(select(AdUnit).order_by(AdUnit.network.asc(), AdUnit.placement.asc())).scalars().all()
+    settings_row = db.execute(select(AdminSettings)).scalar_one_or_none()
     return templates.TemplateResponse(
         "ads.html",
         {
@@ -285,8 +286,53 @@ def admin_ads(request: Request, db: Session = Depends(get_db)):
             "title": "Admin • Ads",
             "admin_user": admin_user,
             "ads": ads,
+            "settings": settings_row,
         },
     )
+
+
+@app.post("/admin/ads/appodeal")
+def admin_ads_appodeal(
+    request: Request,
+    appodeal_app_key: str | None = Form(default=None),
+    appodeal_enabled: str | None = Form(default=None),
+    appodeal_banner_enabled: str | None = Form(default=None),
+    appodeal_interstitial_enabled: str | None = Form(default=None),
+    appodeal_rewarded_enabled: str | None = Form(default=None),
+    db: Session = Depends(get_db),
+):
+    guard = admin_guard(request, db)
+    if isinstance(guard, RedirectResponse):
+        return guard
+
+    enabled_bool = appodeal_enabled == "on"
+    banner_bool = appodeal_banner_enabled == "on"
+    inter_bool = appodeal_interstitial_enabled == "on"
+    rewarded_bool = appodeal_rewarded_enabled == "on"
+
+    row = db.execute(select(AdminSettings)).scalar_one_or_none()
+    if row is None:
+        row = AdminSettings(
+            openrouter_api_key=None,
+            openrouter_model=None,
+            appodeal_app_key=(appodeal_app_key or None),
+            appodeal_enabled=enabled_bool,
+            appodeal_banner_enabled=banner_bool,
+            appodeal_interstitial_enabled=inter_bool,
+            appodeal_rewarded_enabled=rewarded_bool,
+            updated_at=now(),
+        )
+        db.add(row)
+    else:
+        row.appodeal_app_key = (appodeal_app_key or None)
+        row.appodeal_enabled = enabled_bool
+        row.appodeal_banner_enabled = banner_bool
+        row.appodeal_interstitial_enabled = inter_bool
+        row.appodeal_rewarded_enabled = rewarded_bool
+        row.updated_at = now()
+
+    db.commit()
+    return RedirectResponse(url="/admin/ads", status_code=303)
 
 
 @app.post("/admin/ads/upsert")
@@ -503,7 +549,16 @@ def ads_config(
             continue
         filtered.append(u)
 
-    return AdsConfigResponse(network=network, units={u.placement: u.ad_unit_id for u in filtered})
+    settings_row = db.execute(select(AdminSettings)).scalar_one_or_none()
+    return AdsConfigResponse(
+        network=network,
+        units={u.placement: u.ad_unit_id for u in filtered},
+        appodeal_app_key=settings_row.appodeal_app_key if settings_row is not None else None,
+        appodeal_enabled=settings_row.appodeal_enabled if settings_row is not None else False,
+        appodeal_banner_enabled=settings_row.appodeal_banner_enabled if settings_row is not None else True,
+        appodeal_interstitial_enabled=settings_row.appodeal_interstitial_enabled if settings_row is not None else True,
+        appodeal_rewarded_enabled=settings_row.appodeal_rewarded_enabled if settings_row is not None else True,
+    )
 
 
 @app.get("/profile/me", response_model=ProfileResponse)
@@ -1610,6 +1665,11 @@ def get_admin_settings(
         row = AdminSettings(
             openrouter_api_key=None,
             openrouter_model=None,
+            appodeal_app_key=None,
+            appodeal_enabled=False,
+            appodeal_banner_enabled=True,
+            appodeal_interstitial_enabled=True,
+            appodeal_rewarded_enabled=True,
             updated_at=now(),
         )
         db.add(row)
@@ -1619,6 +1679,11 @@ def get_admin_settings(
     return AdminSettingsResponse(
         openrouter_api_key=row.openrouter_api_key,
         openrouter_model=row.openrouter_model,
+        appodeal_app_key=row.appodeal_app_key,
+        appodeal_enabled=row.appodeal_enabled,
+        appodeal_banner_enabled=row.appodeal_banner_enabled,
+        appodeal_interstitial_enabled=row.appodeal_interstitial_enabled,
+        appodeal_rewarded_enabled=row.appodeal_rewarded_enabled,
         updated_at=row.updated_at.isoformat(),
     )
 
@@ -1633,12 +1698,26 @@ def update_admin_settings(
         row = AdminSettings(
             openrouter_api_key=req.openrouter_api_key,
             openrouter_model=req.openrouter_model,
+            appodeal_app_key=req.appodeal_app_key,
+            appodeal_enabled=req.appodeal_enabled or False,
+            appodeal_banner_enabled=req.appodeal_banner_enabled if req.appodeal_banner_enabled is not None else True,
+            appodeal_interstitial_enabled=req.appodeal_interstitial_enabled if req.appodeal_interstitial_enabled is not None else True,
+            appodeal_rewarded_enabled=req.appodeal_rewarded_enabled if req.appodeal_rewarded_enabled is not None else True,
             updated_at=now(),
         )
         db.add(row)
     else:
         row.openrouter_api_key = req.openrouter_api_key
         row.openrouter_model = req.openrouter_model
+        row.appodeal_app_key = req.appodeal_app_key
+        if req.appodeal_enabled is not None:
+            row.appodeal_enabled = req.appodeal_enabled
+        if req.appodeal_banner_enabled is not None:
+            row.appodeal_banner_enabled = req.appodeal_banner_enabled
+        if req.appodeal_interstitial_enabled is not None:
+            row.appodeal_interstitial_enabled = req.appodeal_interstitial_enabled
+        if req.appodeal_rewarded_enabled is not None:
+            row.appodeal_rewarded_enabled = req.appodeal_rewarded_enabled
         row.updated_at = now()
     
     db.commit()
@@ -1646,6 +1725,11 @@ def update_admin_settings(
     return AdminSettingsResponse(
         openrouter_api_key=row.openrouter_api_key,
         openrouter_model=row.openrouter_model,
+        appodeal_app_key=row.appodeal_app_key,
+        appodeal_enabled=row.appodeal_enabled,
+        appodeal_banner_enabled=row.appodeal_banner_enabled,
+        appodeal_interstitial_enabled=row.appodeal_interstitial_enabled,
+        appodeal_rewarded_enabled=row.appodeal_rewarded_enabled,
         updated_at=row.updated_at.isoformat(),
     )
 

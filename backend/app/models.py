@@ -210,6 +210,11 @@ class AdminSettings(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     openrouter_api_key: Mapped[str | None] = mapped_column(String(256), nullable=True)
     openrouter_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    appodeal_app_key: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    appodeal_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    appodeal_banner_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    appodeal_interstitial_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    appodeal_rewarded_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), index=True)
 
 

@@ -8,14 +8,22 @@ import androidx.navigation.compose.rememberNavController
 import com.example.zhivoy.feature.auth.LoginScreen
 import com.example.zhivoy.feature.auth.RegisterScreen
 import com.example.zhivoy.feature.main.MainScreen
+import com.example.zhivoy.feature.ads.AdsDebugScreen
 import com.example.zhivoy.feature.onboarding.AvatarSetupScreen
 import com.example.zhivoy.feature.splash.SplashScreen
+import com.example.zhivoy.LocalSessionStore
+import com.example.zhivoy.LocalAppDatabase
+import com.example.zhivoy.data.repository.AdsRepository
 
 @Composable
 fun ZhivoyNavHost(
     modifier: Modifier = Modifier,
 ) {
     val navController = rememberNavController()
+    val sessionStore = LocalSessionStore.current
+    val db = LocalAppDatabase.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val adsRepository = androidx.compose.runtime.remember(context, sessionStore) { AdsRepository(context, sessionStore) }
 
     NavHost(
         navController = navController,
@@ -82,7 +90,12 @@ fun ZhivoyNavHost(
                         popUpTo(Routes.Main) { inclusive = true }
                     }
                 },
+                onOpenAds = { navController.navigate(Routes.AdsDebug) },
             )
+        }
+
+        composable(Routes.AdsDebug) {
+            AdsDebugScreen(adsRepository = adsRepository)
         }
     }
 }

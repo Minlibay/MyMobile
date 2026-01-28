@@ -6,6 +6,7 @@ object Routes {
     const val Register = "register"
     const val AvatarSetup = "avatar_setup"
     const val Main = "main"
+    const val AdsDebug = "ads_debug"
 }
 
 

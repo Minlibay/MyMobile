@@ -44,6 +44,11 @@ class AdUnitUpsert(BaseModel):
 class AdsConfigResponse(BaseModel):
     network: str
     units: dict[str, str]
+    appodeal_app_key: str | None = None
+    appodeal_enabled: bool = False
+    appodeal_banner_enabled: bool = True
+    appodeal_interstitial_enabled: bool = True
+    appodeal_rewarded_enabled: bool = True
 
 
 class ProfileRequest(BaseModel):
@@ -245,11 +250,21 @@ class SyncBatchResponse(BaseModel):
 class AdminSettingsRequest(BaseModel):
     openrouter_api_key: str | None = Field(default=None, max_length=256)
     openrouter_model: str | None = Field(default=None, max_length=128)
+    appodeal_app_key: str | None = Field(default=None, max_length=256)
+    appodeal_enabled: bool | None = None
+    appodeal_banner_enabled: bool | None = None
+    appodeal_interstitial_enabled: bool | None = None
+    appodeal_rewarded_enabled: bool | None = None
 
 
 class AdminSettingsResponse(BaseModel):
     openrouter_api_key: str | None = None
     openrouter_model: str | None = None
+    appodeal_app_key: str | None = None
+    appodeal_enabled: bool = False
+    appodeal_banner_enabled: bool = True
+    appodeal_interstitial_enabled: bool = True
+    appodeal_rewarded_enabled: bool = True
     updated_at: str
 
 

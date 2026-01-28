@@ -41,7 +41,12 @@ data class UserMeResponse(
 @Serializable
 data class AdsConfigResponse(
     val network: String,
-    val units: Map<String, String>
+    val units: Map<String, String>,
+    val appodeal_app_key: String? = null,
+    val appodeal_enabled: Boolean = false,
+    val appodeal_banner_enabled: Boolean = true,
+    val appodeal_interstitial_enabled: Boolean = true,
+    val appodeal_rewarded_enabled: Boolean = true,
 )
 
 @Serializable

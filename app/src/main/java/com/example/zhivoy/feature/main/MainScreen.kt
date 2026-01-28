@@ -62,6 +62,7 @@ private data class MainTab(
 @Composable
 fun MainScreen(
     onLoggedOut: () -> Unit,
+    onOpenAds: () -> Unit = {},
 ) {
     StepsPermissionAndTracking()
     val context = LocalContext.current
@@ -147,6 +148,14 @@ fun MainScreen(
                                     showMenu = false
                                 },
                                 leadingIcon = { Icon(Icons.Default.EmojiEvents, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Реклама") },
+                                onClick = {
+                                    onOpenAds()
+                                    showMenu = false
+                                },
+                                leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) }
                             )
                             DropdownMenuItem(
                                 text = { Text("Выйти") },

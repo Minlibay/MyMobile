@@ -91,6 +91,11 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
     implementation("io.coil-kt:coil-compose:2.6.0")
+
+    implementation("com.appodeal.ads:sdk:3.0.1.1") {
+        exclude(group = "io.bidmachine", module = "ads.networks.pangle")
+        exclude(group = "com.pangle.global", module = "ads-sdk")
+    }
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
