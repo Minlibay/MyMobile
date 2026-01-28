@@ -7,8 +7,11 @@ import android.net.Uri
 import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.zhivoy.ads.AppodealManager
+import com.example.zhivoy.data.repository.AdsRepository
 import com.example.zhivoy.data.repository.AiChatRepository
 import com.example.zhivoy.data.repository.FoodAiResponse
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -23,7 +26,8 @@ data class ChatMessage(
 
 class AiChatViewModel(
     private val repository: AiChatRepository,
-    private val userId: Long
+    private val userId: Long,
+    private val adsRepository: AdsRepository,
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(listOf(
@@ -45,6 +49,35 @@ class AiChatViewModel(
         }
     }
 
+    private suspend fun maybeShowAiInterstitial(context: Context) {
+        val activity = context as? android.app.Activity ?: return
+
+        val now = System.currentTimeMillis()
+        if (now - lastInterstitialAtMs < 60_000) return
+
+        val cfg = adsRepository.getConfig(network = "appodeal").getOrNull() ?: return
+        if (!cfg.appodeal_enabled) return
+        val appKey = cfg.appodeal_app_key ?: return
+
+        AppodealManager.initializeIfNeeded(
+            activity = activity,
+            appKey = appKey,
+            banner = cfg.appodeal_banner_enabled,
+            interstitial = cfg.appodeal_interstitial_enabled,
+            rewarded = cfg.appodeal_rewarded_enabled,
+        )
+
+        if (cfg.appodeal_interstitial_enabled) {
+            AppodealManager.showInterstitial(activity)
+            lastInterstitialAtMs = now
+            delay(400)
+        }
+    }
+
+    private companion object {
+        private var lastInterstitialAtMs: Long = 0
+    }
+
     fun refreshSettings() {
         viewModelScope.launch {
             val settings = repository.adminSettingsRepository.getSettings()
@@ -61,6 +94,7 @@ class AiChatViewModel(
         _isLoading.value = true
 
         viewModelScope.launch {
+            maybeShowAiInterstitial(context)
             val base64Image = imageUri?.let { uriToBase64(it, context) }
             val result = repository.processFoodInput(userId, text, base64Image)
             

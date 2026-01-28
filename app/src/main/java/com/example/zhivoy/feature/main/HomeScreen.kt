@@ -60,6 +60,7 @@ import com.example.zhivoy.BuildConfig
 import com.example.zhivoy.data.entities.AchievementEntity
 import com.example.zhivoy.data.repository.AiChatRepository
 import com.example.zhivoy.data.repository.AdminSettingsRepository
+import com.example.zhivoy.data.repository.AdsRepository
 import com.example.zhivoy.data.repository.FoodRemoteRepository
 import com.example.zhivoy.data.repository.BookRemoteRepository
 import com.example.zhivoy.data.repository.XpRemoteRepository
@@ -119,6 +120,9 @@ fun HomeScreen() {
     }
     val foodRemoteRepository = remember(sessionStore) {
         FoodRemoteRepository(sessionStore)
+    }
+    val adsRepository = remember(context, sessionStore) {
+        AdsRepository(context, sessionStore)
     }
     val weightRemoteRepository = remember(sessionStore) {
         WeightRemoteRepository(sessionStore)
@@ -365,7 +369,8 @@ fun HomeScreen() {
         if (userId != null) {
             AiChatViewModel(
                 AiChatRepository(openRouterApi, db.foodDao(), foodRemoteRepository, adminSettingsRepository),
-                userId
+                userId,
+                adsRepository,
             )
         } else null
     }
