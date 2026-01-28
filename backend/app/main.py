@@ -1,14 +1,17 @@
 import datetime as dt
 from typing import List
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Form, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
-from app.models import AdUnit, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry
+from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry
 from app.schemas import (
     AdUnitUpsert,
     AdsConfigResponse,
@@ -45,6 +48,15 @@ from app.settings import settings
 
 app = FastAPI(title="Zhivoy API")
 
+templates = Jinja2Templates(directory="app/templates")
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.JWT_SECRET,
+    same_site="lax",
+    https_only=False,
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -80,6 +92,262 @@ def require_user(
 def require_admin(x_admin_key: str | None) -> None:
     if not x_admin_key or x_admin_key != settings.ADMIN_API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def require_admin_session(request: Request, db: Session) -> AdminUser:
+    admin_user_id = request.session.get("admin_user_id")
+    if not admin_user_id:
+        raise HTTPException(status_code=303, headers={"Location": "/admin/login"})
+    admin_user = db.get(AdminUser, int(admin_user_id))
+    if admin_user is None:
+        request.session.clear()
+        raise HTTPException(status_code=303, headers={"Location": "/admin/login"})
+    return admin_user
+
+
+def admin_guard(request: Request, db: Session) -> AdminUser | RedirectResponse:
+    try:
+        return require_admin_session(request, db)
+    except HTTPException as e:
+        if e.status_code == 303:
+            return RedirectResponse(url=e.headers["Location"], status_code=303)
+        raise
+
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_root(request: Request, db: Session = Depends(get_db)):
+    guard = admin_guard(request, db)
+    if isinstance(guard, RedirectResponse):
+        return guard
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@app.get("/admin/login", response_class=HTMLResponse)
+def admin_login_get(request: Request):
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request, "title": "Admin • Login", "error": None},
+    )
+
+
+@app.post("/admin/login")
+def admin_login_post(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    admin_user = db.execute(select(AdminUser).where(AdminUser.username == username)).scalar_one_or_none()
+    if admin_user is None or not verify_password(password, admin_user.password_hash):
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "title": "Admin • Login", "error": "Неверный логин или пароль"},
+            status_code=400,
+        )
+    request.session["admin_user_id"] = admin_user.id
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@app.get("/admin/register", response_class=HTMLResponse)
+def admin_register_get(request: Request):
+    return templates.TemplateResponse(
+        "register.html",
+        {"request": request, "title": "Admin • Register", "error": None},
+    )
+
+
+@app.post("/admin/register")
+def admin_register_post(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    any_admin = db.execute(select(AdminUser.id).limit(1)).first() is not None
+    if any_admin:
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request,
+                "title": "Admin • Register",
+                "error": "Регистрация отключена. Используй существующий админ-аккаунт.",
+            },
+            status_code=403,
+        )
+    existing = db.execute(select(AdminUser).where(AdminUser.username == username)).scalar_one_or_none()
+    if existing is not None:
+        return templates.TemplateResponse(
+            "register.html",
+            {"request": request, "title": "Admin • Register", "error": "Пользователь уже существует"},
+            status_code=400,
+        )
+    admin_user = AdminUser(username=username, password_hash=hash_password(password), created_at=now())
+    db.add(admin_user)
+    db.commit()
+    db.refresh(admin_user)
+    request.session["admin_user_id"] = admin_user.id
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@app.post("/admin/logout")
+def admin_logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/admin/login", status_code=303)
+
+
+@app.get("/admin/users", response_class=HTMLResponse)
+def admin_users(request: Request, db: Session = Depends(get_db)):
+    guard = admin_guard(request, db)
+    if isinstance(guard, RedirectResponse):
+        return guard
+    admin_user = guard
+
+    users = db.execute(select(User).order_by(User.id.desc())).scalars().all()
+    profiles = {p.user_id: p for p in db.execute(select(Profile)).scalars().all()}
+    settings_map = {s.user_id: s for s in db.execute(select(UserSettings)).scalars().all()}
+
+    family_name_by_user: dict[int, str] = {}
+    members = db.execute(select(FamilyMember)).scalars().all()
+    if members:
+        family_ids = {m.family_id for m in members}
+        families = {f.id: f for f in db.execute(select(Family).where(Family.id.in_(family_ids))).scalars().all()}
+        for m in members:
+            fam = families.get(m.family_id)
+            if fam is not None:
+                family_name_by_user[m.user_id] = fam.name
+
+    rows = []
+    for u in users:
+        rows.append(
+            {
+                "user": u,
+                "profile": profiles.get(u.id),
+                "settings": settings_map.get(u.id),
+                "family_name": family_name_by_user.get(u.id),
+            }
+        )
+
+    return templates.TemplateResponse(
+        "users.html",
+        {
+            "request": request,
+            "title": "Admin • Users",
+            "admin_user": admin_user,
+            "rows": rows,
+        },
+    )
+
+
+@app.get("/admin/ads", response_class=HTMLResponse)
+def admin_ads(request: Request, db: Session = Depends(get_db)):
+    guard = admin_guard(request, db)
+    if isinstance(guard, RedirectResponse):
+        return guard
+    admin_user = guard
+    ads = db.execute(select(AdUnit).order_by(AdUnit.network.asc(), AdUnit.placement.asc())).scalars().all()
+    return templates.TemplateResponse(
+        "ads.html",
+        {
+            "request": request,
+            "title": "Admin • Ads",
+            "admin_user": admin_user,
+            "ads": ads,
+        },
+    )
+
+
+@app.post("/admin/ads/upsert")
+def admin_ads_upsert(
+    request: Request,
+    id: int | None = Form(default=None),
+    network: str = Form(...),
+    placement: str = Form(...),
+    ad_unit_id: str = Form(...),
+    enabled: str | None = Form(default=None),
+    android_min_version: str | None = Form(default=None),
+    android_max_version: str | None = Form(default=None),
+    db: Session = Depends(get_db),
+):
+    guard = admin_guard(request, db)
+    if isinstance(guard, RedirectResponse):
+        return guard
+
+    enabled_bool = enabled == "on"
+    min_v = int(android_min_version) if android_min_version else None
+    max_v = int(android_max_version) if android_max_version else None
+
+    if id:
+        item = db.get(AdUnit, int(id))
+        if item is None:
+            raise HTTPException(status_code=404, detail="Not found")
+        item.network = network
+        item.placement = placement
+        item.ad_unit_id = ad_unit_id
+        item.enabled = enabled_bool
+        item.android_min_version = min_v
+        item.android_max_version = max_v
+        item.updated_at = now()
+        db.commit()
+        return RedirectResponse(url="/admin/ads", status_code=303)
+
+    existing = db.execute(select(AdUnit).where(AdUnit.network == network, AdUnit.placement == placement)).scalar_one_or_none()
+    if existing is not None:
+        existing.ad_unit_id = ad_unit_id
+        existing.enabled = enabled_bool
+        existing.android_min_version = min_v
+        existing.android_max_version = max_v
+        existing.updated_at = now()
+        db.commit()
+        return RedirectResponse(url="/admin/ads", status_code=303)
+
+    item = AdUnit(
+        network=network,
+        placement=placement,
+        ad_unit_id=ad_unit_id,
+        enabled=enabled_bool,
+        android_min_version=min_v,
+        android_max_version=max_v,
+        created_at=now(),
+        updated_at=now(),
+    )
+    db.add(item)
+    db.commit()
+    return RedirectResponse(url="/admin/ads", status_code=303)
+
+
+@app.post("/admin/ads/delete")
+def admin_ads_delete(
+    request: Request,
+    id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    guard = admin_guard(request, db)
+    if isinstance(guard, RedirectResponse):
+        return guard
+    item = db.get(AdUnit, int(id))
+    if item is not None:
+        db.delete(item)
+        db.commit()
+    return RedirectResponse(url="/admin/ads", status_code=303)
+
+
+@app.get("/admin/integration", response_class=HTMLResponse)
+def admin_integration(request: Request, db: Session = Depends(get_db)):
+    guard = admin_guard(request, db)
+    if isinstance(guard, RedirectResponse):
+        return guard
+    admin_user = guard
+    ads = db.execute(select(AdUnit).where(AdUnit.enabled == True)).scalars().all()  # noqa: E712
+    placements = {a.placement: a.ad_unit_id for a in ads}
+    return templates.TemplateResponse(
+        "integration.html",
+        {
+            "request": request,
+            "title": "Admin • Integration",
+            "admin_user": admin_user,
+            "placements": placements,
+        },
+    )
 
 
 @app.get("/health")

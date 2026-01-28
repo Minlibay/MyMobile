@@ -16,6 +16,18 @@ class User(Base):
     sessions: Mapped[list["RefreshSession"]] = relationship(back_populates="user")
 
 
+class AdminUser(Base):
+    __tablename__ = "admin_users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: dt.datetime.now(dt.timezone.utc),
+    )
+
+
 class RefreshSession(Base):
     __tablename__ = "refresh_sessions"
 

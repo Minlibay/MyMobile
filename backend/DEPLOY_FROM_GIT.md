@@ -1,4 +1,4 @@
-# Деплой Zhivoy Backend с Git
+ # Деплой Zhivoy Backend с Git
 
 ## Быстрая инструкция
 
