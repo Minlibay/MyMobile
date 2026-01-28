@@ -42,8 +42,6 @@ import androidx.compose.ui.text.font.FontWeight
 import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.data.repository.AuthRepository
-import com.example.zhivoy.LocalAppDatabase
-import com.example.zhivoy.network.ApiClient
 import com.example.zhivoy.network.ApiClient
 import com.example.zhivoy.feature.main.profile.AchievementsScreen
 import com.example.zhivoy.steps.StepsPermissionAndTracking
@@ -61,7 +59,9 @@ private data class MainTab(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen() {
+fun MainScreen(
+    onLoggedOut: () -> Unit,
+) {
     StepsPermissionAndTracking()
     val context = LocalContext.current
     val db = LocalAppDatabase.current
@@ -150,6 +150,7 @@ fun MainScreen() {
                                     scope.launch { 
                                         authRepository.logout()
                                         snackbarHostState.showSuccess("Вы вышли из аккаунта")
+                                        onLoggedOut()
                                     }
                                     showMenu = false
                                 },

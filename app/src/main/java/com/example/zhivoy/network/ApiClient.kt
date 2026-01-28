@@ -4,6 +4,8 @@ import com.example.zhivoy.data.session.SessionStore
 import com.example.zhivoy.network.api.AdsApi
 import com.example.zhivoy.network.api.AuthApi
 import com.example.zhivoy.network.api.OpenRouterApi
+import com.example.zhivoy.network.api.FamilyApi
+import com.example.zhivoy.network.api.StepsApi
 import com.example.zhivoy.network.api.ProfileApi
 import com.example.zhivoy.network.api.UserSettingsApi
 import kotlinx.serialization.json.Json
@@ -81,6 +83,25 @@ object ApiClient {
             .build()
             .create(UserSettingsApi::class.java)
     }
+
+    fun createFamilyApi(sessionStore: SessionStore): FamilyApi {
+        val okHttpClient = createOkHttpClient(sessionStore)
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(FamilyApi::class.java)
+    }
+
+    fun createStepsApi(sessionStore: SessionStore): StepsApi {
+        val okHttpClient = createOkHttpClient(sessionStore)
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(StepsApi::class.java)
     }
 
     fun createOpenRouterApi(): OpenRouterApi {

@@ -7,6 +7,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.SystemClock
 import com.example.zhivoy.data.AppDatabase
+import com.example.zhivoy.data.repository.StepsRepository
 import com.example.zhivoy.data.entities.StepCounterStateEntity
 import com.example.zhivoy.data.entities.StepEntryEntity
 import com.example.zhivoy.util.DateTime
@@ -21,6 +22,7 @@ class StepsTracker(
     private val db: AppDatabase,
     private val userId: Long,
     private val scope: CoroutineScope,
+    private val stepsRepository: StepsRepository? = null,
 ) : SensorEventListener {
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val stepCounter: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
@@ -113,6 +115,13 @@ class StepsTracker(
                         updatedAtEpochMs = System.currentTimeMillis(),
                     ),
                 )
+
+                // Sync to backend (best-effort)
+                try {
+                    stepsRepository?.upsertSteps(epochDay, stepsToday)
+                } catch (_: Exception) {
+                    // ignore: offline / server issues should not break local tracking
+                }
             }
         }
     }

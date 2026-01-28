@@ -10,23 +10,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.data.entities.SmokeStatusEntity
@@ -36,6 +34,8 @@ import com.example.zhivoy.ui.components.ModernTextField
 import com.example.zhivoy.util.DateTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.animation.core.*
@@ -46,18 +46,19 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import kotlin.math.pow
 import androidx.compose.ui.platform.LocalContext
-import com.example.zhivoy.network.ApiClient
 import java.time.Instant
+import com.example.zhivoy.network.ApiClient
 
 @Composable
 fun HealthScreen() {
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
+    val context = LocalContext.current
     val authRepository = remember { com.example.zhivoy.data.repository.AuthRepository(
-        LocalContext.current,
+        context,
         sessionStore,
-        com.example.zhivoy.network.ApiClient.createProfileApi(sessionStore),
-        com.example.zhivoy.network.ApiClient.createUserSettingsApi(sessionStore),
+        ApiClient.createProfileApi(sessionStore),
+        ApiClient.createUserSettingsApi(sessionStore),
         db.profileDao(),
         db.userSettingsDao(),
     ) }
@@ -82,8 +83,8 @@ fun HealthScreen() {
                     weightKg = profileResponse.weight_kg,
                     age = profileResponse.age,
                     sex = profileResponse.sex,
-                    createdAtEpochMs = java.time.Instant.parse(profileResponse.created_at).toEpochMilli(),
-                    updatedAtEpochMs = java.time.Instant.parse(profileResponse.updated_at).toEpochMilli(),
+                    createdAtEpochMs = Instant.parse(profileResponse.created_at).toEpochMilli(),
+                    updatedAtEpochMs = Instant.parse(profileResponse.updated_at).toEpochMilli(),
                 )
             },
             onFailure = { /* Handle error or show a message */ }
@@ -101,7 +102,7 @@ fun HealthScreen() {
     val smokeStatus by (if (userId != null) db.smokeDao().observe(userId) else kotlinx.coroutines.flow.flowOf(null))
         .collectAsState(initial = null)
 
-    // Авто-старт “Я не курю” при первом заходе
+    // Авто-старт при первом заходе
     LaunchedEffect(userId) {
         if (userId == null) return@LaunchedEffect
         withContext(Dispatchers.IO) {
@@ -122,7 +123,7 @@ fun HealthScreen() {
         }
     }
 
-    var nowEpochMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    var nowEpochMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(smokeStatus?.startedAtEpochMs) {
         while (true) {
             nowEpochMs = System.currentTimeMillis()
@@ -256,7 +257,7 @@ fun HealthScreen() {
                 }
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
@@ -268,13 +269,31 @@ fun HealthScreen() {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 ModernTextField(
                     value = packPriceText,
-                    onValueChange = { packPriceText = it.replace(',', '.').filter { ch -> ch.isDigit() || ch == '.' } },
+                    onValueChange = { newValue ->
+                        // Разрешаем только цифры и одну точку/запятую для десятичных дробей
+                        val filtered = newValue.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }
+                        // Заменяем запятую на точку для корректного парсинга
+                        val formatted = filtered.replace(',', '.')
+                        // Разрешаем только одну точку
+                        if (formatted.count { it == '.' } <= 1) {
+                            packPriceText = formatted
+                        }
+                    },
                     label = "Цена пачки",
                     modifier = Modifier.weight(1f)
                 )
                 ModernTextField(
                     value = packsPerDayText,
-                    onValueChange = { packsPerDayText = it.replace(',', '.').filter { ch -> ch.isDigit() || ch == '.' } },
+                    onValueChange = { newValue ->
+                        // Разрешаем только цифры и одну точку/запятую для десятичных дробей
+                        val filtered = newValue.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }
+                        // Заменяем запятую на точку для корректного парсинга
+                        val formatted = filtered.replace(',', '.')
+                        // Разрешаем только одну точку
+                        if (formatted.count { it == '.' } <= 1) {
+                            packsPerDayText = formatted
+                        }
+                    },
                     label = "Пачек/день",
                     modifier = Modifier.weight(1f)
                 )
@@ -291,6 +310,9 @@ fun HealthScreen() {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         withContext(Dispatchers.IO) {
                             val current = db.smokeDao().get(userId) ?: return@withContext
+                            // Проверяем, изменились ли значения перед обновлением
+                            val isChanged = current.packPrice != price || current.packsPerDay != ppd
+                            
                             db.smokeDao().upsert(
                                 current.copy(
                                     packPrice = price,
@@ -298,17 +320,21 @@ fun HealthScreen() {
                                     updatedAtEpochMs = System.currentTimeMillis(),
                                 ),
                             )
+                            
                             // XP за день без курения (простая логика: 1 событие в день)
-                            db.xpDao().insert(
-                                com.example.zhivoy.data.entities.XpEventEntity(
-                                    userId = userId,
-                                    dateEpochDay = today,
-                                    type = "nosmoke",
-                                    points = 10,
-                                    note = "No smoke settings updated",
-                                    createdAtEpochMs = System.currentTimeMillis(),
-                                ),
-                            )
+                            // Начисляем XP только если значения действительно изменились
+                            if (isChanged) {
+                                db.xpDao().insert(
+                                    com.example.zhivoy.data.entities.XpEventEntity(
+                                        userId = userId,
+                                        dateEpochDay = today,
+                                        type = "nosmoke",
+                                        points = 10,
+                                        note = "No smoke settings updated",
+                                        createdAtEpochMs = System.currentTimeMillis(),
+                                    ),
+                                )
+                            }
                         }
                     }
                 },

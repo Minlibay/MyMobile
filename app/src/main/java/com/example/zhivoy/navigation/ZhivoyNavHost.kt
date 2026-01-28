@@ -75,7 +75,15 @@ fun ZhivoyNavHost(
                 },
             )
         }
-        composable(Routes.Main) { MainScreen() }
+        composable(Routes.Main) { 
+            MainScreen(
+                onLoggedOut = {
+                    navController.navigate(Routes.Login) {
+                        popUpTo(Routes.Main) { inclusive = true }
+                    }
+                },
+            )
+        }
     }
 }
 

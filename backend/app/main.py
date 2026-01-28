@@ -1,25 +1,32 @@
 import datetime as dt
+from typing import List
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
-from app.models import AdUnit, Family, FamilyMember, Profile, RefreshSession, User, UserSettings
+from app.models import AdUnit, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry
 from app.schemas import (
     AdUnitUpsert,
     AdsConfigResponse,
     FamilyMemberResponse,
     FamilyRequest,
     FamilyResponse,
+    InviteUserRequest,
+    JoinFamilyRequest,
     LoginRequest,
     LogoutRequest,
     ProfileRequest,
     ProfileResponse,
     RefreshRequest,
     RegisterRequest,
+    StepEntryResponse,
+    StepUpsertRequest,
+    WaterCreateRequest,
+    WaterEntryResponse,
     TokenPair,
     UserMeResponse,
     UserSettingsRequest,
@@ -519,4 +526,156 @@ def join_family(req: JoinFamilyRequest, user: User = Depends(require_user), db: 
             for m in family.members
         ],
     )
+
+
+@app.get("/steps/me", response_model=List[StepEntryResponse])
+def get_steps_me(
+    start: int,
+    end: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> List[StepEntryResponse]:
+    rows = (
+        db.execute(
+            select(StepEntry)
+            .where(
+                StepEntry.user_id == user.id,
+                StepEntry.date_epoch_day >= start,
+                StepEntry.date_epoch_day <= end,
+            )
+            .order_by(StepEntry.date_epoch_day.asc())
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        StepEntryResponse(
+            date_epoch_day=r.date_epoch_day,
+            steps=r.steps,
+            updated_at=r.updated_at.isoformat(),
+        )
+        for r in rows
+    ]
+
+
+@app.put("/steps/me", response_model=StepEntryResponse)
+def upsert_steps_me(
+    req: StepUpsertRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> StepEntryResponse:
+    row = (
+        db.execute(
+            select(StepEntry).where(
+                StepEntry.user_id == user.id,
+                StepEntry.date_epoch_day == req.date_epoch_day,
+            )
+        )
+        .scalars()
+        .one_or_none()
+    )
+
+    if row is None:
+        row = StepEntry(
+            user_id=user.id,
+            date_epoch_day=req.date_epoch_day,
+            steps=req.steps,
+            updated_at=now(),
+        )
+        db.add(row)
+    else:
+        row.steps = req.steps
+        row.updated_at = now()
+
+    db.commit()
+    db.refresh(row)
+    return StepEntryResponse(
+        date_epoch_day=row.date_epoch_day,
+        steps=row.steps,
+        updated_at=row.updated_at.isoformat(),
+    )
+
+
+@app.get("/water/me", response_model=List[WaterEntryResponse])
+def get_water_me(
+    start: int,
+    end: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> List[WaterEntryResponse]:
+    rows = (
+        db.execute(
+            select(WaterEntry)
+            .where(
+                WaterEntry.user_id == user.id,
+                WaterEntry.date_epoch_day >= start,
+                WaterEntry.date_epoch_day <= end,
+            )
+            .order_by(WaterEntry.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        WaterEntryResponse(
+            id=r.id,
+            date_epoch_day=r.date_epoch_day,
+            amount_ml=r.amount_ml,
+            created_at=r.created_at.isoformat(),
+        )
+        for r in rows
+    ]
+
+
+@app.post("/water/me", response_model=WaterEntryResponse)
+def create_water_me(
+    req: WaterCreateRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> WaterEntryResponse:
+    row = WaterEntry(
+        user_id=user.id,
+        date_epoch_day=req.date_epoch_day,
+        amount_ml=req.amount_ml,
+        created_at=now(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return WaterEntryResponse(
+        id=row.id,
+        date_epoch_day=row.date_epoch_day,
+        amount_ml=row.amount_ml,
+        created_at=row.created_at.isoformat(),
+    )
+
+
+@app.delete("/water/me/{entry_id}")
+def delete_water_me(
+    entry_id: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    row = db.get(WaterEntry, entry_id)
+    if row is None or row.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(row)
+    db.commit()
+    return {"status": "deleted"}
+
+
+@app.delete("/water/me")
+def clear_water_day_me(
+    date_epoch_day: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    db.execute(
+        delete(WaterEntry).where(
+            WaterEntry.user_id == user.id,
+            WaterEntry.date_epoch_day == date_epoch_day,
+        )
+    )
+    db.commit()
+    return {"status": "cleared"}
 

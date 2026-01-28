@@ -13,6 +13,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.example.zhivoy.MainActivity
 import com.example.zhivoy.data.AppDatabase
+import com.example.zhivoy.data.repository.StepsRepository
 import com.example.zhivoy.data.session.SessionStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -95,6 +96,7 @@ class StepsForegroundService : Service() {
         }
 
         val sessionStore = SessionStore(appContext)
+        val stepsRepository = StepsRepository(sessionStore)
 
         scope.launch {
             val session = sessionStore.session.first()
@@ -116,6 +118,7 @@ class StepsForegroundService : Service() {
                 db = db,
                 userId = userId,
                 scope = scope,
+                stepsRepository = stepsRepository,
             )
             tracker = localTracker
             localTracker.start()

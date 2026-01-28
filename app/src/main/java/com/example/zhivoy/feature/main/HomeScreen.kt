@@ -83,6 +83,8 @@ import com.example.zhivoy.util.Calories
 import com.example.zhivoy.util.DateTime
 import com.example.zhivoy.util.Leveling
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.format.TextStyle
 import java.util.Locale
 import java.time.Instant
@@ -91,14 +93,17 @@ import java.time.Instant
 fun HomeScreen() {
     val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
-    val authRepository = remember { com.example.zhivoy.data.repository.AuthRepository(
-        androidx.compose.ui.platform.LocalContext.current,
-        sessionStore,
-        com.example.zhivoy.network.ApiClient.createProfileApi(sessionStore),
-        com.example.zhivoy.network.ApiClient.createUserSettingsApi(sessionStore),
-        db.profileDao(),
-        db.userSettingsDao(),
-    ) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val authRepository = remember(context, sessionStore, db) { 
+        com.example.zhivoy.data.repository.AuthRepository(
+            context,
+            sessionStore,
+            com.example.zhivoy.network.ApiClient.createProfileApi(sessionStore),
+            com.example.zhivoy.network.ApiClient.createUserSettingsApi(sessionStore),
+            db.profileDao(),
+            db.userSettingsDao(),
+        )
+    }
     val session by sessionStore.session.collectAsState(initial = null)
     val userId = session?.userId
     val today = DateTime.epochDayNow()
@@ -176,8 +181,7 @@ fun HomeScreen() {
         )
     }
 
-    val remindersEnabled = settings?.remindersEnabled ?: true
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val remindersEnabled = settings.value?.remindersEnabled ?: true
     LaunchedEffect(remindersEnabled) {
         if (remindersEnabled) {
             com.example.zhivoy.notifications.ReminderManager.schedulePeriodicReminders(context)
@@ -187,13 +191,13 @@ fun HomeScreen() {
         }
     }
 
-    val stepGoal = settings?.stepGoal ?: 8000
+    val stepGoal = settings.value?.stepGoal ?: 8000
     val calorieGoal = run {
-        val override = settings?.calorieGoalOverride
+        val override = settings.value?.calorieGoalOverride
         if (override != null) override
         else {
             val profile = profileState.value
-            if (profile != null) Calories.calorieTarget(Calories.tdee(profile), settings?.calorieMode ?: "maintain") else 0
+            if (profile != null) Calories.calorieTarget(Calories.tdee(profile), settings.value?.calorieMode ?: "maintain") else 0
         }
     }
 
@@ -229,8 +233,8 @@ fun HomeScreen() {
     
     var showConfetti by remember { mutableStateOf(false) }
 
-    val stepsDone = stepGoal > 0 && stepsToday in stepGoal..Int.MAX_VALUE
-    val caloriesDone = calorieGoal > 0 && caloriesToday in calorieGoal..Int.MAX_VALUE
+    val stepsDone = stepGoal > 0 && stepsToday >= stepGoal
+    val caloriesDone = calorieGoal > 0 && caloriesToday >= calorieGoal
     // waterDone is already defined above
 
     suspend fun awardOnce(type: String, points: Int, note: String) {
@@ -434,8 +438,8 @@ fun HomeScreen() {
     if (showGoals) {
         GoalsDialog(
             initialStepGoal = stepGoal,
-            initialMode = settings?.calorieMode ?: "maintain",
-            initialCalorieOverride = settings?.calorieGoalOverride,
+            initialMode = settings.value?.calorieMode ?: "maintain",
+            initialCalorieOverride = settings.value?.calorieGoalOverride,
             initialRemindersEnabled = remindersEnabled,
             onDismiss = { showGoals = false },
             onSave = { newStepGoal, newMode, override, newReminders ->
@@ -449,7 +453,7 @@ fun HomeScreen() {
                     ).fold(
                         onSuccess = { updatedSettings ->
                             settings.value = com.example.zhivoy.data.entities.UserSettingsEntity(
-                                id = updatedSettings.id,
+                                id = updatedSettings.id.toLong(),
                                 userId = userId,
                                 calorieMode = updatedSettings.calorie_mode,
                                 stepGoal = updatedSettings.step_goal,

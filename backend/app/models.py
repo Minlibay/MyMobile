@@ -117,6 +117,37 @@ class FamilyMember(Base):
 User.family_members = relationship("FamilyMember", back_populates="user", cascade="all, delete-orphan")
 
 
+class StepEntry(Base):
+    __tablename__ = "step_entries"
+    __table_args__ = (
+        UniqueConstraint("user_id", "date_epoch_day", name="uq_step_entries_user_day"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    date_epoch_day: Mapped[int] = mapped_column(Integer, index=True)
+    steps: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+
+    user: Mapped["User"] = relationship()
+
+
+class WaterEntry(Base):
+    __tablename__ = "water_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    date_epoch_day: Mapped[int] = mapped_column(Integer, index=True)
+    amount_ml: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: dt.datetime.now(dt.timezone.utc),
+        index=True,
+    )
+
+    user: Mapped["User"] = relationship()
+
+
 
 
 

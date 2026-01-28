@@ -20,30 +20,43 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
-import com.example.zhivoy.data.entities.FamilyEntity
-import com.example.zhivoy.data.entities.FamilyMemberEntity
+import com.example.zhivoy.data.repository.FamilyRepository
 import com.example.zhivoy.ui.components.ModernButton
 import com.example.zhivoy.ui.components.ModernCard
 import com.example.zhivoy.ui.components.ModernTextField
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 fun FamilyScreen() {
-    val db = LocalAppDatabase.current
     val sessionStore = LocalSessionStore.current
-    val session by sessionStore.session.collectAsState(initial = null)
-    val userId = session?.userId
     val scope = rememberCoroutineScope()
+    val repository = remember { FamilyRepository(sessionStore) }
 
-    val family by (if (userId != null) db.familyDao().observeUserFamily(userId) else kotlinx.coroutines.flow.flowOf(null))
-        .collectAsState(initial = null)
-    
-    val members by (if (family != null) db.familyDao().observeFamilyMembers(family!!.id) else kotlinx.coroutines.flow.flowOf(emptyList()))
-        .collectAsState(initial = emptyList())
+    var family by remember { mutableStateOf<com.example.zhivoy.network.dto.FamilyResponseDto?>(null) }
+    var members by remember { mutableStateOf<List<com.example.zhivoy.network.dto.FamilyMemberResponseDto>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var errorText by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        loading = true
+        errorText = null
+        repository.getMyFamily()
+            .onSuccess { f ->
+                family = f
+                repository.getMyFamilyMembers()
+                    .onSuccess { members = it }
+                    .onFailure { errorText = it.message }
+            }
+            .onFailure { e ->
+                // 404 -> нет семьи, это не ошибка
+                if (!e.message.orEmpty().contains("404")) {
+                    errorText = e.message
+                }
+            }
+        loading = false
+    }
+
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var showAddMemberDialog by remember { mutableStateOf(false) }
@@ -60,7 +73,11 @@ fun FamilyScreen() {
             fontWeight = FontWeight.Bold
         )
 
-        if (family == null) {
+        if (loading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (family == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
@@ -95,7 +112,7 @@ fun FamilyScreen() {
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Администратор: ${if (family!!.adminUserId == userId) "Вы" else "Другой пользователь"}",
+                            text = "Администратор: ${if (/* current user */ false) "Вы" else "Другой пользователь"}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -113,7 +130,7 @@ fun FamilyScreen() {
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
-                if (family!!.adminUserId == userId) {
+                if (true) { // админский функционал пока не различаем по пользователю
                     TextButton(onClick = { showAddMemberDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = null)
                         Spacer(modifier = Modifier.width(4.dp))
@@ -126,7 +143,7 @@ fun FamilyScreen() {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                items(members.sortedByDescending { it.totalXp }) { member ->
+                items(members) { member ->
                     ModernCard {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
@@ -146,22 +163,12 @@ fun FamilyScreen() {
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "${member.totalXp} XP",
+                                    text = member.joined_at,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            if (family!!.adminUserId == userId && member.userId != userId) {
-                                IconButton(onClick = {
-                                    scope.launch {
-                                        withContext(Dispatchers.IO) {
-                                            db.familyDao().removeMember(family!!.id, member.userId)
-                                        }
-                                    }
-                                }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error)
-                                }
-                            }
+                            // пока не поддерживаем удаление участника через бэкенд
                         }
                     }
                 }
@@ -183,23 +190,13 @@ fun FamilyScreen() {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    if (userId != null && familyName.isNotBlank()) {
+                    if (familyName.isNotBlank()) {
                         scope.launch {
-                            withContext(Dispatchers.IO) {
-                                val fid = db.familyDao().insertFamily(
-                                    FamilyEntity(
-                                        name = familyName,
-                                        adminUserId = userId,
-                                        createdAtEpochMs = System.currentTimeMillis()
-                                    )
-                                )
-                                db.familyDao().insertMember(
-                                    FamilyMemberEntity(
-                                        familyId = fid,
-                                        userId = userId,
-                                        joinedAtEpochMs = System.currentTimeMillis()
-                                    )
-                                )
+                            val result = repository.createFamily(familyName)
+                            result.onSuccess {
+                                family = it
+                                repository.getMyFamilyMembers()
+                                    .onSuccess { members = it }
                             }
                         }
                         showCreateDialog = false
@@ -232,22 +229,16 @@ fun FamilyScreen() {
                 TextButton(onClick = {
                     if (family != null && memberLogin.isNotBlank()) {
                         scope.launch {
-                            val targetId = withContext(Dispatchers.IO) {
-                                db.familyDao().getUserIdByLogin(memberLogin)
-                            }
-                            if (targetId == null) {
-                                error = "Пользователь не найден"
-                            } else {
-                                withContext(Dispatchers.IO) {
-                                    db.familyDao().insertMember(
-                                        FamilyMemberEntity(
-                                            familyId = family!!.id,
-                                            userId = targetId,
-                                            joinedAtEpochMs = System.currentTimeMillis()
-                                        )
-                                    )
-                                }
+                            val result = repository.inviteUser(memberLogin)
+                            result.onSuccess {
+                                error = null
                                 showAddMemberDialog = false
+                                // Обновим список участников
+                                repository.getMyFamilyMembers()
+                                    .onSuccess { members = it }
+                                    .onFailure { error = it.message }
+                            }.onFailure {
+                                error = it.message ?: "Ошибка приглашения"
                             }
                         }
                     }

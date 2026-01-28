@@ -7,22 +7,16 @@ import com.example.zhivoy.data.dao.UserSettingsDao
 import com.example.zhivoy.data.session.SessionStore
 import com.example.zhivoy.network.ApiClient
 import com.example.zhivoy.network.api.AuthApi
-import com.example.zhivoy.network.dto.LoginRequest
-import com.example.zhivoy.network.dto.ProfileRequestDto
-import com.example.zhivoy.network.dto.ProfileResponseDto
-import com.example.zhivoy.network.dto.UserSettingsRequestDto
-import com.example.zhivoy.network.dto.UserSettingsResponseDto
-import com.example.zhivoy.network.api.AuthApi
 import com.example.zhivoy.network.api.ProfileApi
 import com.example.zhivoy.network.api.UserSettingsApi
 import com.example.zhivoy.network.dto.LoginRequest
 import com.example.zhivoy.network.dto.ProfileRequestDto
 import com.example.zhivoy.network.dto.ProfileResponseDto
-import com.example.zhivoy.network.dto.UserSettingsRequestDto
-import com.example.zhivoy.network.dto.UserSettingsResponseDto
 import com.example.zhivoy.network.dto.RegisterRequest
 import com.example.zhivoy.network.dto.TokenPair
 import com.example.zhivoy.network.dto.UserMeResponse
+import com.example.zhivoy.network.dto.UserSettingsRequestDto
+import com.example.zhivoy.network.dto.UserSettingsResponseDto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -148,7 +142,7 @@ class AuthRepository(
                 }
                 sessionStore.clear()
                 Result.success(Unit)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Даже если запрос не удался, очищаем локальные данные
                 sessionStore.clear()
                 Result.success(Unit)
@@ -229,4 +223,4 @@ class AuthRepository(
             }
         }
     }
-
+}

@@ -98,6 +98,29 @@ class JoinFamilyRequest(BaseModel):
     family_name: str = Field(min_length=3, max_length=64)
 
 
+class StepUpsertRequest(BaseModel):
+    date_epoch_day: int
+    steps: int = Field(ge=0)
+
+
+class StepEntryResponse(BaseModel):
+    date_epoch_day: int
+    steps: int
+    updated_at: str
+
+
+class WaterCreateRequest(BaseModel):
+    date_epoch_day: int
+    amount_ml: int = Field(gt=0)
+
+
+class WaterEntryResponse(BaseModel):
+    id: int
+    date_epoch_day: int
+    amount_ml: int
+    created_at: str
+
+
 
 
 
