@@ -59,6 +59,7 @@ import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.BuildConfig
 import com.example.zhivoy.data.entities.AchievementEntity
 import com.example.zhivoy.data.repository.AiChatRepository
+import com.example.zhivoy.data.repository.WaterRepository
 import com.example.zhivoy.feature.main.AiChatViewModel
 import com.example.zhivoy.network.api.OpenRouterApi
 import retrofit2.Retrofit
@@ -104,6 +105,9 @@ fun HomeScreen() {
             db.userSettingsDao(),
         )
     }
+    val waterRepository = remember(sessionStore) {
+        WaterRepository(sessionStore)
+    }
     val session by sessionStore.session.collectAsState(initial = null)
     val userId = session?.userId
     val today = DateTime.epochDayNow()
@@ -141,8 +145,21 @@ fun HomeScreen() {
         .collectAsState(initial = 0)
     val xpTotal by (if (userId != null) db.xpDao().observeTotal(userId) else kotlinx.coroutines.flow.flowOf(0))
         .collectAsState(initial = 0)
-    val waterToday by (if (userId != null) db.waterDao().observeTotalForDay(userId, today) else kotlinx.coroutines.flow.flowOf(0))
+    val localWaterToday by (if (userId != null) db.waterDao().observeTotalForDay(userId, today) else kotlinx.coroutines.flow.flowOf(0))
         .collectAsState(initial = 0)
+    var remoteWaterToday by remember(userId) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(userId) {
+        if (userId == null) return@LaunchedEffect
+        waterRepository.getWaterRange(start = today, end = today).fold(
+            onSuccess = { entries ->
+                remoteWaterToday = entries.sumOf { it.amount_ml }
+            },
+            onFailure = {
+                // Fallback to local DB if offline / server error
+            },
+        )
+    }
+    val waterToday: Int = remoteWaterToday ?: (localWaterToday ?: 0)
     val levelInfo = remember(xpTotal) { Leveling.levelInfo(xpTotal) }
 
     // Settings + profile -> goals
@@ -229,7 +246,7 @@ fun HomeScreen() {
     val totalCaloriesBurned = caloriesBurnedFromTrainings + caloriesBurnedFromWalking
 
     val waterGoal = 2000 // мл
-    val waterDone = (waterToday ?: 0) >= waterGoal
+    val waterDone = waterToday >= waterGoal
     
     var showConfetti by remember { mutableStateOf(false) }
 
@@ -682,7 +699,7 @@ fun HomeScreen() {
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            text = "Выпито: ${waterToday ?: 0} / $waterGoal мл",
+                            text = "Выпито: $waterToday / $waterGoal мл",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -696,7 +713,7 @@ fun HomeScreen() {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 LinearProgressIndicator(
-                    progress = { ((waterToday ?: 0).toFloat() / waterGoal).coerceIn(0f, 1f) },
+                    progress = { (waterToday.toFloat() / waterGoal).coerceIn(0f, 1f) },
                     modifier = Modifier.fillMaxWidth().height(10.dp).clip(CircleShape),
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.primaryContainer
@@ -711,16 +728,26 @@ fun HomeScreen() {
                                 if (userId == null) return@ModernOutlinedButton
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 scope.launch {
-                                    withContext(Dispatchers.IO) {
-                                        db.waterDao().insert(
-                                            com.example.zhivoy.data.entities.WaterEntryEntity(
-                                                userId = userId,
-                                                dateEpochDay = today,
-                                                amountMl = ml,
-                                                createdAtEpochMs = System.currentTimeMillis()
+                                    // Server-first: send to backend
+                                    val result = waterRepository.createWater(today, ml)
+                                    if (result.isSuccess) {
+                                        remoteWaterToday = (remoteWaterToday ?: waterToday) + ml
+                                    } else {
+                                        // Offline fallback: keep local insert so user progress is not lost
+                                        withContext(Dispatchers.IO) {
+                                            db.waterDao().insert(
+                                                com.example.zhivoy.data.entities.WaterEntryEntity(
+                                                    userId = userId,
+                                                    dateEpochDay = today,
+                                                    amountMl = ml,
+                                                    createdAtEpochMs = System.currentTimeMillis()
+                                                )
                                             )
-                                        )
-                                        // +2 XP за каждый стакан
+                                        }
+                                    }
+
+                                    // Local XP (for now). Will be moved to backend later.
+                                    withContext(Dispatchers.IO) {
                                         db.xpDao().insert(
                                             com.example.zhivoy.data.entities.XpEventEntity(
                                                 userId = userId,

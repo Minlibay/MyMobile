@@ -6,6 +6,7 @@ import com.example.zhivoy.network.api.AuthApi
 import com.example.zhivoy.network.api.OpenRouterApi
 import com.example.zhivoy.network.api.FamilyApi
 import com.example.zhivoy.network.api.StepsApi
+import com.example.zhivoy.network.api.WaterApi
 import com.example.zhivoy.network.api.ProfileApi
 import com.example.zhivoy.network.api.UserSettingsApi
 import kotlinx.serialization.json.Json
@@ -102,6 +103,16 @@ object ApiClient {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(StepsApi::class.java)
+    }
+
+    fun createWaterApi(sessionStore: SessionStore): WaterApi {
+        val okHttpClient = createOkHttpClient(sessionStore)
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(WaterApi::class.java)
     }
 
     fun createOpenRouterApi(): OpenRouterApi {
