@@ -60,6 +60,7 @@ import com.example.zhivoy.BuildConfig
 import com.example.zhivoy.data.entities.AchievementEntity
 import com.example.zhivoy.data.repository.AiChatRepository
 import com.example.zhivoy.data.repository.WaterRepository
+import com.example.zhivoy.data.repository.WeightRemoteRepository
 import com.example.zhivoy.feature.main.AiChatViewModel
 import com.example.zhivoy.network.api.OpenRouterApi
 import retrofit2.Retrofit
@@ -107,6 +108,9 @@ fun HomeScreen() {
     }
     val waterRepository = remember(sessionStore) {
         WaterRepository(sessionStore)
+    }
+    val weightRemoteRepository = remember(sessionStore) {
+        WeightRemoteRepository(sessionStore)
     }
     val session by sessionStore.session.collectAsState(initial = null)
     val userId = session?.userId
@@ -389,6 +393,8 @@ fun HomeScreen() {
             onAdd = { weightKg ->
                 if (userId == null) return@AddWeightDialog
                 scope.launch {
+                    // Server-first
+                    weightRemoteRepository.upsertWeight(today, weightKg)
                     withContext(Dispatchers.IO) {
                         db.weightDao().upsert(
                             WeightEntryEntity(

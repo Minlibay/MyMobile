@@ -1,5 +1,5 @@
 import datetime as dt
-from sqlalchemy import String, Integer, BigInteger, Boolean, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import String, Integer, BigInteger, Boolean, DateTime, ForeignKey, UniqueConstraint, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -139,6 +139,39 @@ class StepEntry(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     date_epoch_day: Mapped[int] = mapped_column(Integer, index=True)
     steps: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+
+    user: Mapped["User"] = relationship()
+
+
+class WeightEntry(Base):
+    __tablename__ = "weight_entries"
+    __table_args__ = (
+        UniqueConstraint("user_id", "date_epoch_day", name="uq_weight_entries_user_day"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    date_epoch_day: Mapped[int] = mapped_column(Integer, index=True)
+    weight_kg: Mapped[float] = mapped_column(BigInteger)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+
+    user: Mapped["User"] = relationship()
+
+
+class SmokeStatus(Base):
+    __tablename__ = "smoke_status"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_smoke_status_user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    started_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    pack_price: Mapped[float] = mapped_column(Float)
+    packs_per_day: Mapped[float] = mapped_column(Float)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
 
     user: Mapped["User"] = relationship()

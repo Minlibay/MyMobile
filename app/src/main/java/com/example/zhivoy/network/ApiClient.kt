@@ -5,7 +5,9 @@ import com.example.zhivoy.network.api.AdsApi
 import com.example.zhivoy.network.api.AuthApi
 import com.example.zhivoy.network.api.OpenRouterApi
 import com.example.zhivoy.network.api.FamilyApi
+import com.example.zhivoy.network.api.SmokeApi
 import com.example.zhivoy.network.api.StepsApi
+import com.example.zhivoy.network.api.WeightApi
 import com.example.zhivoy.network.api.WaterApi
 import com.example.zhivoy.network.api.ProfileApi
 import com.example.zhivoy.network.api.UserSettingsApi
@@ -113,6 +115,26 @@ object ApiClient {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(WaterApi::class.java)
+    }
+
+    fun createWeightApi(sessionStore: SessionStore): WeightApi {
+        val okHttpClient = createOkHttpClient(sessionStore)
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(WeightApi::class.java)
+    }
+
+    fun createSmokeApi(sessionStore: SessionStore): SmokeApi {
+        val okHttpClient = createOkHttpClient(sessionStore)
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(SmokeApi::class.java)
     }
 
     fun createOpenRouterApi(): OpenRouterApi {

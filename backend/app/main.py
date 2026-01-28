@@ -11,7 +11,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
-from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry
+from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus
 from app.schemas import (
     AdUnitUpsert,
     AdsConfigResponse,
@@ -30,6 +30,10 @@ from app.schemas import (
     StepUpsertRequest,
     WaterCreateRequest,
     WaterEntryResponse,
+    WeightEntryResponse,
+    WeightUpsertRequest,
+    SmokeStatusRequest,
+    SmokeStatusResponse,
     TokenPair,
     UserMeResponse,
     UserSettingsRequest,
@@ -946,4 +950,136 @@ def clear_water_day_me(
     )
     db.commit()
     return {"status": "cleared"}
+
+
+@app.get("/weight/me", response_model=List[WeightEntryResponse])
+def get_weight_me(
+    start: int,
+    end: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> List[WeightEntryResponse]:
+    rows = (
+        db.execute(
+            select(WeightEntry)
+            .where(
+                WeightEntry.user_id == user.id,
+                WeightEntry.date_epoch_day >= start,
+                WeightEntry.date_epoch_day <= end,
+            )
+            .order_by(WeightEntry.date_epoch_day.asc())
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        WeightEntryResponse(
+            date_epoch_day=r.date_epoch_day,
+            weight_kg=r.weight_kg,
+            updated_at=r.updated_at.isoformat(),
+        )
+        for r in rows
+    ]
+
+
+@app.put("/weight/me", response_model=WeightEntryResponse)
+def upsert_weight_me(
+    req: WeightUpsertRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> WeightEntryResponse:
+    row = (
+        db.execute(
+            select(WeightEntry).where(
+                WeightEntry.user_id == user.id,
+                WeightEntry.date_epoch_day == req.date_epoch_day,
+            )
+        )
+        .scalars()
+        .one_or_none()
+    )
+
+    if row is None:
+        row = WeightEntry(
+            user_id=user.id,
+            date_epoch_day=req.date_epoch_day,
+            weight_kg=req.weight_kg,
+            created_at=now(),
+            updated_at=now(),
+        )
+        db.add(row)
+    else:
+        row.weight_kg = req.weight_kg
+        row.updated_at = now()
+
+    db.commit()
+    db.refresh(row)
+    return WeightEntryResponse(
+        date_epoch_day=row.date_epoch_day,
+        weight_kg=row.weight_kg,
+        updated_at=row.updated_at.isoformat(),
+    )
+
+
+@app.get("/smoke/me", response_model=SmokeStatusResponse)
+def get_smoke_me(
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> SmokeStatusResponse:
+    row = db.execute(select(SmokeStatus).where(SmokeStatus.user_id == user.id)).scalar_one_or_none()
+    if row is None:
+        row = SmokeStatus(
+            user_id=user.id,
+            started_at=now(),
+            is_active=True,
+            pack_price=0.0,
+            packs_per_day=0.0,
+            updated_at=now(),
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return SmokeStatusResponse(
+        started_at=row.started_at.isoformat(),
+        is_active=row.is_active,
+        pack_price=row.pack_price,
+        packs_per_day=row.packs_per_day,
+        updated_at=row.updated_at.isoformat(),
+    )
+
+
+@app.put("/smoke/me", response_model=SmokeStatusResponse)
+def upsert_smoke_me(
+    req: SmokeStatusRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> SmokeStatusResponse:
+    started_at = dt.datetime.fromisoformat(req.started_at.replace("Z", "+00:00"))
+    row = db.execute(select(SmokeStatus).where(SmokeStatus.user_id == user.id)).scalar_one_or_none()
+    if row is None:
+        row = SmokeStatus(
+            user_id=user.id,
+            started_at=started_at,
+            is_active=req.is_active,
+            pack_price=req.pack_price,
+            packs_per_day=req.packs_per_day,
+            updated_at=now(),
+        )
+        db.add(row)
+    else:
+        row.started_at = started_at
+        row.is_active = req.is_active
+        row.pack_price = req.pack_price
+        row.packs_per_day = req.packs_per_day
+        row.updated_at = now()
+
+    db.commit()
+    db.refresh(row)
+    return SmokeStatusResponse(
+        started_at=row.started_at.isoformat(),
+        is_active=row.is_active,
+        pack_price=row.pack_price,
+        packs_per_day=row.packs_per_day,
+        updated_at=row.updated_at.isoformat(),
+    )
 

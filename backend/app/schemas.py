@@ -121,6 +121,28 @@ class WaterEntryResponse(BaseModel):
     created_at: str
 
 
+class WeightUpsertRequest(BaseModel):
+    date_epoch_day: int
+    weight_kg: float = Field(gt=0, le=500)
+
+
+class WeightEntryResponse(BaseModel):
+    date_epoch_day: int
+    weight_kg: float
+    updated_at: str
+
+
+class SmokeStatusRequest(BaseModel):
+    started_at: str
+    is_active: bool = True
+    pack_price: float = Field(ge=0)
+    packs_per_day: float = Field(ge=0)
+
+
+class SmokeStatusResponse(SmokeStatusRequest):
+    updated_at: str
+
+
 
 
 

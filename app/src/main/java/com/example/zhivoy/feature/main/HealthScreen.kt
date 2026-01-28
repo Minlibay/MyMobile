@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.data.entities.SmokeStatusEntity
+import com.example.zhivoy.data.repository.SmokeRemoteRepository
+import com.example.zhivoy.data.repository.WeightRemoteRepository
 import com.example.zhivoy.ui.components.ModernCard
 import com.example.zhivoy.ui.components.ModernButton
 import com.example.zhivoy.ui.components.ModernTextField
@@ -68,6 +70,9 @@ fun HealthScreen() {
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
 
+    val weightRemoteRepository = remember(sessionStore) { WeightRemoteRepository(sessionStore) }
+    val smokeRemoteRepository = remember(sessionStore) { SmokeRemoteRepository(sessionStore) }
+
     val latestWeight by (if (userId != null) db.weightDao().observeLatest(userId) else kotlinx.coroutines.flow.flowOf(null))
         .collectAsState(initial = null)
 
@@ -102,25 +107,64 @@ fun HealthScreen() {
     val smokeStatus by (if (userId != null) db.smokeDao().observe(userId) else kotlinx.coroutines.flow.flowOf(null))
         .collectAsState(initial = null)
 
-    // Авто-старт при первом заходе
     LaunchedEffect(userId) {
         if (userId == null) return@LaunchedEffect
-        withContext(Dispatchers.IO) {
-            val existing = db.smokeDao().get(userId)
-            if (existing == null) {
-                val now = System.currentTimeMillis()
-                db.smokeDao().upsert(
-                    SmokeStatusEntity(
-                        userId = userId,
-                        startedAtEpochMs = now,
-                        isActive = true,
-                        packPrice = 0.0,
-                        packsPerDay = 0.0,
-                        updatedAtEpochMs = now,
-                    ),
-                )
+
+        weightRemoteRepository.getWeightRange(start = today - 60, end = today).fold(
+            onSuccess = { rows ->
+                withContext(Dispatchers.IO) {
+                    val nowMs = System.currentTimeMillis()
+                    rows.forEach { r ->
+                        db.weightDao().upsert(
+                            com.example.zhivoy.data.entities.WeightEntryEntity(
+                                userId = userId,
+                                dateEpochDay = r.date_epoch_day,
+                                weightKg = r.weight_kg,
+                                createdAtEpochMs = nowMs,
+                            )
+                        )
+                    }
+                }
+            },
+            onFailure = { }
+        )
+
+        smokeRemoteRepository.getSmokeStatus().fold(
+            onSuccess = { r ->
+                withContext(Dispatchers.IO) {
+                    val startedAtMs = Instant.parse(r.started_at).toEpochMilli()
+                    val updatedAtMs = Instant.parse(r.updated_at).toEpochMilli()
+                    db.smokeDao().upsert(
+                        SmokeStatusEntity(
+                            userId = userId,
+                            startedAtEpochMs = startedAtMs,
+                            isActive = r.is_active,
+                            packPrice = r.pack_price,
+                            packsPerDay = r.packs_per_day,
+                            updatedAtEpochMs = updatedAtMs,
+                        )
+                    )
+                }
+            },
+            onFailure = {
+                withContext(Dispatchers.IO) {
+                    val existing = db.smokeDao().get(userId)
+                    if (existing == null) {
+                        val now = System.currentTimeMillis()
+                        db.smokeDao().upsert(
+                            SmokeStatusEntity(
+                                userId = userId,
+                                startedAtEpochMs = now,
+                                isActive = true,
+                                packPrice = 0.0,
+                                packsPerDay = 0.0,
+                                updatedAtEpochMs = now,
+                            ),
+                        )
+                    }
+                }
             }
-        }
+        )
     }
 
     var nowEpochMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -244,12 +288,31 @@ fun HealthScreen() {
                     if (userId == null) return@ModernButton
                     scope.launch {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        val nowMs = System.currentTimeMillis()
+                        val current = withContext(Dispatchers.IO) { db.smokeDao().get(userId) }
+                        val packPrice = current?.packPrice ?: 0.0
+                        val packsPerDay = current?.packsPerDay ?: 0.0
+
+                        smokeRemoteRepository.upsertSmokeStatus(
+                            startedAtIso = Instant.ofEpochMilli(nowMs).toString(),
+                            isActive = true,
+                            packPrice = packPrice,
+                            packsPerDay = packsPerDay,
+                        )
+
                         withContext(Dispatchers.IO) {
-                            val current = db.smokeDao().get(userId) ?: return@withContext
+                            val local = (current ?: SmokeStatusEntity(
+                                userId = userId,
+                                startedAtEpochMs = nowMs,
+                                isActive = true,
+                                packPrice = packPrice,
+                                packsPerDay = packsPerDay,
+                                updatedAtEpochMs = nowMs,
+                            ))
                             db.smokeDao().upsert(
-                                current.copy(
-                                    startedAtEpochMs = System.currentTimeMillis(),
-                                    updatedAtEpochMs = System.currentTimeMillis(),
+                                local.copy(
+                                    startedAtEpochMs = nowMs,
+                                    updatedAtEpochMs = nowMs,
                                 ),
                             )
                         }
@@ -308,13 +371,21 @@ fun HealthScreen() {
                     val ppd = packsPerDayText.toDoubleOrNull() ?: 0.0
                     scope.launch {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        val current = withContext(Dispatchers.IO) { db.smokeDao().get(userId) }
+                        val startedAtMs = current?.startedAtEpochMs ?: System.currentTimeMillis()
+                        smokeRemoteRepository.upsertSmokeStatus(
+                            startedAtIso = Instant.ofEpochMilli(startedAtMs).toString(),
+                            isActive = current?.isActive ?: true,
+                            packPrice = price,
+                            packsPerDay = ppd,
+                        )
                         withContext(Dispatchers.IO) {
-                            val current = db.smokeDao().get(userId) ?: return@withContext
+                            val localCurrent = db.smokeDao().get(userId) ?: return@withContext
                             // Проверяем, изменились ли значения перед обновлением
-                            val isChanged = current.packPrice != price || current.packsPerDay != ppd
+                            val isChanged = localCurrent.packPrice != price || localCurrent.packsPerDay != ppd
                             
                             db.smokeDao().upsert(
-                                current.copy(
+                                localCurrent.copy(
                                     packPrice = price,
                                     packsPerDay = ppd,
                                     updatedAtEpochMs = System.currentTimeMillis(),
