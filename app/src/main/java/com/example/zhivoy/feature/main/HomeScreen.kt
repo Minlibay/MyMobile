@@ -62,6 +62,7 @@ import com.example.zhivoy.data.repository.AiChatRepository
 import com.example.zhivoy.data.repository.FoodRemoteRepository
 import com.example.zhivoy.data.repository.BookRemoteRepository
 import com.example.zhivoy.data.repository.XpRemoteRepository
+import com.example.zhivoy.data.repository.SyncRepository
 import com.example.zhivoy.data.repository.SmokeRemoteRepository
 import com.example.zhivoy.data.repository.WaterRepository
 import com.example.zhivoy.data.repository.WeightRemoteRepository
@@ -124,6 +125,9 @@ fun HomeScreen() {
     }
     val xpRemoteRepository = remember(sessionStore) {
         XpRemoteRepository(sessionStore)
+    }
+    val syncRepository = remember(sessionStore, db) {
+        SyncRepository(sessionStore, db)
     }
     val session by sessionStore.session.collectAsState(initial = null)
     val userId = session?.userId
@@ -792,8 +796,19 @@ fun HomeScreen() {
                                     // Server-first: send to backend
                                     val result = waterRepository.createWater(today, ml)
                                     if (result.isSuccess) {
-                                        remoteWaterToday = (remoteWaterToday ?: waterToday) + ml
+                                        // Process any pending sync items
+                                        syncRepository.processPending(userId)
                                     } else {
+                                        // Enqueue for retry
+                                        syncRepository.enqueue(
+                                            userId = userId,
+                                            entityType = "water",
+                                            action = "create",
+                                            payload = mapOf(
+                                                "date_epoch_day" to today,
+                                                "amount_ml" to ml,
+                                            ),
+                                        )
                                         // Offline fallback: keep local insert so user progress is not lost
                                         withContext(Dispatchers.IO) {
                                             db.waterDao().insert(

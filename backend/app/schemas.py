@@ -226,6 +226,22 @@ class UserAchievementResponse(BaseModel):
     created_at: str
 
 
+class SyncBatchItem(BaseModel):
+    entity_type: str = Field(min_length=1, max_length=64)
+    action: str = Field(min_length=1, max_length=32)
+    payload: dict
+
+
+class SyncBatchRequest(BaseModel):
+    items: List[SyncBatchItem]
+
+
+class SyncBatchResponse(BaseModel):
+    processed: int
+    failed: int
+    errors: List[str] = Field(default_factory=list)
+
+
 
 
 

@@ -5,6 +5,7 @@ import android.provider.Settings
 import com.example.zhivoy.data.dao.ProfileDao
 import com.example.zhivoy.data.dao.UserSettingsDao
 import com.example.zhivoy.data.session.SessionStore
+import com.example.zhivoy.data.repository.SyncRepository
 import com.example.zhivoy.network.ApiClient
 import com.example.zhivoy.network.api.AuthApi
 import com.example.zhivoy.network.api.ProfileApi
@@ -27,6 +28,7 @@ class AuthRepository(
     private val userSettingsApi: UserSettingsApi,
     private val profileDao: ProfileDao,
     private val userSettingsDao: UserSettingsDao,
+    private val syncRepository: SyncRepository,
 ) {
     private val authApi: AuthApi = ApiClient.createAuthApi(sessionStore)
 
@@ -46,6 +48,9 @@ class AuthRepository(
 
                 // Migrate local data to backend
                 val userId = userMe.id.toLong()
+
+                // Migrate all local data to server
+                syncRepository.migrateLocalToServer(userId)
 
                 val localProfile = profileDao.getByUserId(userId)
                 if (localProfile != null) {
@@ -88,6 +93,9 @@ class AuthRepository(
 
                 // Migrate local data to backend
                 val userId = userMe.id.toLong()
+
+                // Migrate all local data to server
+                syncRepository.migrateLocalToServer(userId)
 
                 val localProfile = profileDao.getByUserId(userId)
                 if (localProfile != null) {

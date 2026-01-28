@@ -10,6 +10,7 @@ import com.example.zhivoy.data.dao.ProfileDao
 import com.example.zhivoy.data.dao.SmokeDao
 import com.example.zhivoy.data.dao.StepCounterStateDao
 import com.example.zhivoy.data.dao.StepsDao
+import com.example.zhivoy.data.dao.SyncQueueDao
 import com.example.zhivoy.data.dao.TrainingDao
 import com.example.zhivoy.data.dao.TrainingPlanDao
 import com.example.zhivoy.data.dao.TrainingTemplateDao
@@ -28,6 +29,7 @@ import com.example.zhivoy.data.entities.ProfileEntity
 import com.example.zhivoy.data.entities.SmokeStatusEntity
 import com.example.zhivoy.data.entities.StepCounterStateEntity
 import com.example.zhivoy.data.entities.StepEntryEntity
+import com.example.zhivoy.data.entities.SyncQueueEntity
 import com.example.zhivoy.data.entities.TrainingEntity
 import com.example.zhivoy.data.entities.TrainingPlanEntity
 import com.example.zhivoy.data.entities.TrainingTemplateEntity
@@ -49,6 +51,7 @@ import com.example.zhivoy.data.entities.XpEventEntity
         SmokeStatusEntity::class,
         StepCounterStateEntity::class,
         StepEntryEntity::class,
+        SyncQueueEntity::class,
         TrainingEntity::class,
         TrainingPlanEntity::class,
         TrainingTemplateEntity::class,
@@ -59,7 +62,7 @@ import com.example.zhivoy.data.entities.XpEventEntity
         WeightEntryEntity::class,
         XpEventEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -71,6 +74,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun smokeDao(): SmokeDao
     abstract fun stepCounterStateDao(): StepCounterStateDao
     abstract fun stepsDao(): StepsDao
+    abstract fun syncQueueDao(): SyncQueueDao
     abstract fun trainingDao(): TrainingDao
     abstract fun trainingPlanDao(): TrainingPlanDao
     abstract fun trainingTemplateDao(): TrainingTemplateDao

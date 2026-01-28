@@ -11,7 +11,7 @@ from sqlalchemy import delete, select, update, func
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
-from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry, BookEntry, XpEvent, UserAchievement
+from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry, BookEntry, XpEvent, UserAchievement, SyncQueue
 from app.schemas import (
     AdUnitUpsert,
     AdsConfigResponse,
@@ -46,6 +46,9 @@ from app.schemas import (
     XpDailyAggregateResponse,
     XpTotalResponse,
     UserAchievementResponse,
+    SyncBatchItem,
+    SyncBatchRequest,
+    SyncBatchResponse,
     TokenPair,
     UserMeResponse,
     UserSettingsRequest,
@@ -1431,4 +1434,154 @@ def get_achievements_me(
         )
         for r in rows
     ]
+
+
+@app.post("/sync/batch", response_model=SyncBatchResponse)
+def sync_batch(
+    req: SyncBatchRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> SyncBatchResponse:
+    processed = 0
+    failed = 0
+    errors = []
+    
+    for item in req.items:
+        try:
+            if item.entity_type == "water" and item.action == "create":
+                payload = item.payload
+                row = WaterEntry(
+                    user_id=user.id,
+                    date_epoch_day=payload["date_epoch_day"],
+                    amount_ml=payload["amount_ml"],
+                    created_at=now(),
+                )
+                db.add(row)
+            elif item.entity_type == "food" and item.action == "create":
+                payload = item.payload
+                row = FoodEntry(
+                    user_id=user.id,
+                    date_epoch_day=payload["date_epoch_day"],
+                    title=payload["title"],
+                    calories=payload["calories"],
+                    created_at=now(),
+                )
+                db.add(row)
+            elif item.entity_type == "training" and item.action == "create":
+                payload = item.payload
+                row = TrainingEntry(
+                    user_id=user.id,
+                    date_epoch_day=payload["date_epoch_day"],
+                    title=payload["title"],
+                    description=payload.get("description"),
+                    calories_burned=payload.get("calories_burned", 0),
+                    duration_minutes=payload.get("duration_minutes", 0),
+                    created_at=now(),
+                )
+                db.add(row)
+            elif item.entity_type == "book" and item.action == "create":
+                payload = item.payload
+                row = BookEntry(
+                    user_id=user.id,
+                    title=payload["title"],
+                    author=payload.get("author"),
+                    total_pages=payload["total_pages"],
+                    pages_read=0,
+                    created_at=now(),
+                )
+                db.add(row)
+            elif item.entity_type == "book" and item.action == "update_progress":
+                payload = item.payload
+                row = db.get(BookEntry, payload["id"])
+                if row and row.user_id == user.id:
+                    row.pages_read = payload["pages_read"]
+            elif item.entity_type == "xp_event" and item.action == "create":
+                payload = item.payload
+                row = XpEvent(
+                    user_id=user.id,
+                    date_epoch_day=payload["date_epoch_day"],
+                    type=payload["type"],
+                    points=payload["points"],
+                    note=payload.get("note"),
+                    created_at=now(),
+                )
+                db.add(row)
+            elif item.entity_type == "weight" and item.action == "upsert":
+                payload = item.payload
+                row = (
+                    db.execute(
+                        select(WeightEntry).where(
+                            WeightEntry.user_id == user.id,
+                            WeightEntry.date_epoch_day == payload["date_epoch_day"],
+                        )
+                    )
+                    .scalars()
+                    .one_or_none()
+                )
+                if row is None:
+                    row = WeightEntry(
+                        user_id=user.id,
+                        date_epoch_day=payload["date_epoch_day"],
+                        weight_kg=payload["weight_kg"],
+                        created_at=now(),
+                        updated_at=now(),
+                    )
+                    db.add(row)
+                else:
+                    row.weight_kg = payload["weight_kg"]
+                    row.updated_at = now()
+            elif item.entity_type == "smoke_status" and item.action == "upsert":
+                payload = item.payload
+                started_at = dt.datetime.fromisoformat(payload["started_at"].replace("Z", "+00:00"))
+                row = db.execute(select(SmokeStatus).where(SmokeStatus.user_id == user.id)).scalar_one_or_none()
+                if row is None:
+                    row = SmokeStatus(
+                        user_id=user.id,
+                        started_at=started_at,
+                        is_active=payload["is_active"],
+                        pack_price=payload.get("pack_price", 0.0),
+                        packs_per_day=payload.get("packs_per_day", 0.0),
+                        updated_at=now(),
+                    )
+                    db.add(row)
+                else:
+                    row.is_active = payload["is_active"]
+                    row.pack_price = payload.get("pack_price", row.pack_price)
+                    row.packs_per_day = payload.get("packs_per_day", row.packs_per_day)
+                    row.updated_at = now()
+            elif item.entity_type == "steps" and item.action == "upsert":
+                payload = item.payload
+                row = (
+                    db.execute(
+                        select(StepEntry).where(
+                            StepEntry.user_id == user.id,
+                            StepEntry.date_epoch_day == payload["date_epoch_day"],
+                        )
+                    )
+                    .scalars()
+                    .one_or_none()
+                )
+                if row is None:
+                    row = StepEntry(
+                        user_id=user.id,
+                        date_epoch_day=payload["date_epoch_day"],
+                        steps=payload["steps"],
+                        updated_at=now(),
+                    )
+                    db.add(row)
+                else:
+                    row.steps = payload["steps"]
+                    row.updated_at = now()
+            else:
+                errors.append(f"Unsupported entity/action: {item.entity_type}/{item.action}")
+                failed += 1
+                continue
+            
+            processed += 1
+        except Exception as e:
+            errors.append(f"Error processing {item.entity_type}/{item.action}: {str(e)}")
+            failed += 1
+    
+    db.commit()
+    return SyncBatchResponse(processed=processed, failed=failed, errors=errors)
 
