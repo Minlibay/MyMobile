@@ -42,8 +42,8 @@ docker-compose exec -T api alembic upgrade head
 
 # Setup Nginx
 echo "Configuring Nginx..."
-cp nginx.conf /etc/nginx/sites-available/zhivoy
-ln -sf /etc/nginx/sites-available/zhivoy /etc/nginx/sites-enabled/
+cp nginx.conf /etc/nginx/sites-available/alta
+ln -sf /etc/nginx/sites-available/alta /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
 # Test Nginx config

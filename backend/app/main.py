@@ -67,7 +67,7 @@ from app.security import (
 from app.settings import settings
 
 
-app = FastAPI(title="Zhivoy API")
+app = FastAPI(title="Alta API")
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -657,6 +657,7 @@ def get_user_settings(user: User = Depends(require_user), db: Session = Depends(
         calorie_mode=user_settings.calorie_mode,
         step_goal=user_settings.step_goal,
         calorie_goal_override=user_settings.calorie_goal_override,
+        target_weight_kg=user_settings.target_weight_kg,
         reminders_enabled=user_settings.reminders_enabled,
         updated_at=user_settings.updated_at.isoformat(),
     )
@@ -671,6 +672,7 @@ def upsert_user_settings(req: UserSettingsRequest, user: User = Depends(require_
             calorie_mode=req.calorie_mode,
             step_goal=req.step_goal,
             calorie_goal_override=req.calorie_goal_override,
+            target_weight_kg=req.target_weight_kg,
             reminders_enabled=req.reminders_enabled,
             updated_at=now(),
         )
@@ -679,6 +681,7 @@ def upsert_user_settings(req: UserSettingsRequest, user: User = Depends(require_
         user_settings.calorie_mode = req.calorie_mode
         user_settings.step_goal = req.step_goal
         user_settings.calorie_goal_override = req.calorie_goal_override
+        user_settings.target_weight_kg = req.target_weight_kg
         user_settings.reminders_enabled = req.reminders_enabled
         user_settings.updated_at = now()
     db.commit()
@@ -689,6 +692,7 @@ def upsert_user_settings(req: UserSettingsRequest, user: User = Depends(require_
         calorie_mode=user_settings.calorie_mode,
         step_goal=user_settings.step_goal,
         calorie_goal_override=user_settings.calorie_goal_override,
+        target_weight_kg=user_settings.target_weight_kg,
         reminders_enabled=user_settings.reminders_enabled,
         updated_at=user_settings.updated_at.isoformat(),
     )

@@ -1,4 +1,4 @@
- # Деплой Zhivoy Backend с Git
+ # Деплой Alta Backend с Git
 
 ## Быстрая инструкция
 
@@ -48,8 +48,8 @@ fi
 ### 3. Клонируй репозиторий
 ```bash
 cd /opt
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git zhivoy-backend
-cd zhivoy-backend/backend
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git com.volovod.com.volovod.altavolovod.alta-backend
+cd com.volovod.com.volovod.altavolovod.alta-backend/backend
 ```
 
 ### 4. Создай .env файл
@@ -85,10 +85,10 @@ docker-compose exec api alembic upgrade head
 ### 7. Настрой Nginx
 ```bash
 # Скопируй конфигурацию
-cp nginx.conf /etc/nginx/sites-available/zhivoy
+cp nginx.conf /etc/nginx/sites-available/com.volovod.com.volovod.altavolovod.alta
 
 # Создай симлинк
-ln -sf /etc/nginx/sites-available/zhivoy /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/com.volovod.com.volovod.altavolovod.alta /etc/nginx/sites-enabled/
 
 # Удали дефолтный сайт
 rm -f /etc/nginx/sites-enabled/default
@@ -112,7 +112,7 @@ curl http://45.134.12.54/docs
 ## Обновление кода
 
 ```bash
-cd /opt/zhivoy-backend/backend
+cd /opt/com.volovod.com.volovod.altavolovod.alta-backend/backend
 git pull
 docker-compose build api
 docker-compose up -d

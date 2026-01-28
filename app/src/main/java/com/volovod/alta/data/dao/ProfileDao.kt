@@ -1,0 +1,33 @@
+package com.volovod.alta.data.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.volovod.alta.data.entities.ProfileEntity
+
+@Dao
+interface ProfileDao {
+    @Query("SELECT * FROM profiles WHERE userId = :userId LIMIT 1")
+    suspend fun getByUserId(userId: Long): ProfileEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(profile: ProfileEntity): Long
+
+    @Query("DELETE FROM profiles WHERE userId = :userId")
+    suspend fun delete(userId: Long)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+

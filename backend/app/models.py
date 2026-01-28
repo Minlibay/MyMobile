@@ -90,6 +90,7 @@ class UserSettings(Base):
     calorie_mode: Mapped[str] = mapped_column(String(16)) # "maintain" | "lose" | "gain"
     step_goal: Mapped[int] = mapped_column(Integer)
     calorie_goal_override: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    target_weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
     reminders_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))

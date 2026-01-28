@@ -1,4 +1,4 @@
-# Zhivoy Backend (FastAPI)
+# Alta Backend (FastAPI)
 
 FastAPI + PostgreSQL backend for:
 - User registration/login (login + password)

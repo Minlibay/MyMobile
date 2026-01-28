@@ -7,13 +7,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.zhivoy"
+    namespace = "com.volovod.alta"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.example.zhivoy"
+        applicationId = "com.volovod.alta"
         minSdk = 28
         targetSdk = 36
         versionCode = 1
@@ -92,9 +92,16 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation("io.coil-kt:coil-compose:2.6.0")
 
-    implementation("com.appodeal.ads:sdk:3.0.1.1") {
+    implementation("com.appodeal.ads:sdk:3.12.0.1") {
         exclude(group = "io.bidmachine", module = "ads.networks.pangle")
         exclude(group = "com.pangle.global", module = "ads-sdk")
+
+        // Remove AdMob / Google Mobile Ads
+        exclude(group = "com.appodeal.ads.sdk.networks", module = "admob")
+        exclude(group = "com.google.android.gms", module = "play-services-ads")
+        exclude(group = "com.applovin.mediation", module = "google-adapter")
+        exclude(group = "com.applovin.mediation", module = "google-ad-manager-adapter")
+        exclude(group = "com.unity3d.ads-mediation", module = "admob-adapter")
     }
     
     testImplementation(libs.junit)

@@ -25,5 +25,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Zhivoy"
+rootProject.name = "Alta"
 include(":app")

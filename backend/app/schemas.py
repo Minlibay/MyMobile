@@ -69,6 +69,7 @@ class UserSettingsRequest(BaseModel):
     calorie_mode: str = Field(pattern="^(maintain|lose|gain)$")
     step_goal: int = Field(gt=0)
     calorie_goal_override: int | None = Field(None, gt=0)
+    target_weight_kg: float | None = Field(None, gt=0, le=500)
     reminders_enabled: bool = True
 
 

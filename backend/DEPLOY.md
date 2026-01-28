@@ -1,4 +1,4 @@
-# Деплой Zhivoy Backend на VPS
+# Деплой Alta Backend на VPS
 
 ## Быстрый старт
 
@@ -24,29 +24,29 @@ bash <(curl -s https://raw.githubusercontent.com/.../deploy.sh)
 ssh root@45.134.12.54 "mkdir -p /opt/zhivoy-backend"
 
 # Загрузи файлы
-scp -r backend/app root@45.134.12.54:/opt/zhivoy-backend/
-scp -r backend/alembic root@45.134.12.54:/opt/zhivoy-backend/
-scp backend/alembic.ini root@45.134.12.54:/opt/zhivoy-backend/
-scp backend/pyproject.toml root@45.134.12.54:/opt/zhivoy-backend/
-scp backend/Dockerfile root@45.134.12.54:/opt/zhivoy-backend/
-scp backend/docker-compose.yml root@45.134.12.54:/opt/zhivoy-backend/
-scp backend/nginx.conf root@45.134.12.54:/opt/zhivoy-backend/
-scp backend/setup-server.sh root@45.134.12.54:/opt/zhivoy-backend/
+scp -r backend/app root@45.134.12.54:/opt/com.volovod.com.volovod.altavolovod.alta-backend/
+scp -r backend/alembic root@45.134.12.54:/opt/com.volovod.com.volovod.altavolovod.alta-backend/
+scp backend/alembic.ini root@45.134.12.54:/opt/com.volovod.com.volovod.altavolovod.alta-backend/
+scp backend/pyproject.toml root@45.134.12.54:/opt/com.volovod.com.volovod.altavolovod.alta-backend/
+scp backend/Dockerfile root@45.134.12.54:/opt/com.volovod.com.volovod.altavolovod.alta-backend/
+scp backend/docker-compose.yml root@45.134.12.54:/opt/com.volovod.com.volovod.altavolovod.alta-backend/
+scp backend/nginx.conf root@45.134.12.54:/opt/com.volovod.com.volovod.altavolovod.alta-backend/
+scp backend/setup-server.sh root@45.134.12.54:/opt/com.volovod.com.volovod.altavolovod.alta-backend/
 ```
 
 **Вариант B: Через Git (если репозиторий публичный)**
 ```bash
 ssh root@45.134.12.54
 cd /opt
-git clone <your-repo-url> zhivoy-backend
-cd zhivoy-backend/backend
+git clone <your-repo-url> com.volovod.com.volovod.altavolovod.alta-backend
+cd com.volovod.com.volovod.altavolovod.alta-backend/backend
 ```
 
 ### 4. Настрой и запусти
 
 ```bash
 ssh root@45.134.12.54
-cd /opt/zhivoy-backend
+cd /opt/com.volovod.com.volovod.altavolovod.alta-backend
 
 # Создай .env файл
 cat > .env <<EOF
@@ -67,8 +67,8 @@ sleep 10
 docker-compose exec -T api alembic upgrade head
 
 # Настрой Nginx
-cp nginx.conf /etc/nginx/sites-available/zhivoy
-ln -sf /etc/nginx/sites-available/zhivoy /etc/nginx/sites-enabled/
+cp nginx.conf /etc/nginx/sites-available/com.volovod.com.volovod.altavolovod.alta
+ln -sf /etc/nginx/sites-available/com.volovod.com.volovod.altavolovod.alta /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
@@ -110,7 +110,7 @@ docker-compose restart api
 docker-compose down
 
 # Обновление кода
-cd /opt/zhivoy-backend
+cd /opt/com.volovod.com.volovod.altavolovod.alta-backend
 # Загрузи новые файлы
 docker-compose restart api
 ```

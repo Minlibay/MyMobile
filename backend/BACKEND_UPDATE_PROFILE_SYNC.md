@@ -104,7 +104,7 @@ def update_profile(
 ### 4. Создать миграцию Alembic
 
 ```bash
-cd /opt/zhivoy-backend/backend
+cd /opt/com.volovod.com.volovod.altavolovod.alta-backend/backend
 docker-compose exec api alembic revision --autogenerate -m "add_profile_table"
 docker-compose exec api alembic upgrade head
 ```
