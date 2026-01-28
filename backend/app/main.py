@@ -11,7 +11,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
-from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry
+from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry
 from app.schemas import (
     AdUnitUpsert,
     AdsConfigResponse,
@@ -36,6 +36,8 @@ from app.schemas import (
     SmokeStatusResponse,
     FoodCreateRequest,
     FoodEntryResponse,
+    TrainingCreateRequest,
+    TrainingEntryResponse,
     TokenPair,
     UserMeResponse,
     UserSettingsRequest,
@@ -931,6 +933,83 @@ def delete_water_me(
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
     row = db.get(WaterEntry, entry_id)
+    if row is None or row.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(row)
+    db.commit()
+    return {"status": "deleted"}
+
+
+@app.get("/training/me", response_model=List[TrainingEntryResponse])
+def get_training_me(
+    start: int,
+    end: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> List[TrainingEntryResponse]:
+    rows = (
+        db.execute(
+            select(TrainingEntry)
+            .where(
+                TrainingEntry.user_id == user.id,
+                TrainingEntry.date_epoch_day >= start,
+                TrainingEntry.date_epoch_day <= end,
+            )
+            .order_by(TrainingEntry.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        TrainingEntryResponse(
+            id=r.id,
+            date_epoch_day=r.date_epoch_day,
+            title=r.title,
+            description=r.description,
+            calories_burned=r.calories_burned,
+            duration_minutes=r.duration_minutes,
+            created_at=r.created_at.isoformat(),
+        )
+        for r in rows
+    ]
+
+
+@app.post("/training/me", response_model=TrainingEntryResponse)
+def create_training_me(
+    req: TrainingCreateRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> TrainingEntryResponse:
+    row = TrainingEntry(
+        user_id=user.id,
+        date_epoch_day=req.date_epoch_day,
+        title=req.title,
+        description=req.description,
+        calories_burned=req.calories_burned,
+        duration_minutes=req.duration_minutes,
+        created_at=now(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return TrainingEntryResponse(
+        id=row.id,
+        date_epoch_day=row.date_epoch_day,
+        title=row.title,
+        description=row.description,
+        calories_burned=row.calories_burned,
+        duration_minutes=row.duration_minutes,
+        created_at=row.created_at.isoformat(),
+    )
+
+
+@app.delete("/training/me/{entry_id}")
+def delete_training_me(
+    entry_id: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    row = db.get(TrainingEntry, entry_id)
     if row is None or row.user_id != user.id:
         raise HTTPException(status_code=404, detail="Not found")
     db.delete(row)

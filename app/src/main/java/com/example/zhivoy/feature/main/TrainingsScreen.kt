@@ -34,6 +34,7 @@ import com.example.zhivoy.data.entities.TrainingPlanEntity
 import com.example.zhivoy.data.entities.TrainingTemplateEntity
 import com.example.zhivoy.data.entities.TrainingWeekGoalEntity
 import com.example.zhivoy.data.entities.XpEventEntity
+import com.example.zhivoy.data.repository.TrainingRemoteRepository
 import com.example.zhivoy.feature.main.training.AddTemplateDialog
 import com.example.zhivoy.feature.main.training.AddTrainingDialog
 import com.example.zhivoy.feature.main.training.PlankDialog
@@ -58,6 +59,8 @@ fun TrainingsScreen() {
     val userId = session?.userId
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
+
+    val trainingRemoteRepository = remember(sessionStore) { TrainingRemoteRepository(sessionStore) }
 
     val today = DateTime.epochDayNow()
     var selectedDay by remember { mutableIntStateOf(today) }
@@ -101,19 +104,31 @@ fun TrainingsScreen() {
             onSuccess = { seconds ->
                 if (userId == null) return@PlankDialog
                 scope.launch {
+                    val title = "Планка: ${seconds}с"
+                    val caloriesBurned = (seconds * 0.1).toInt()
+                    val durationMinutes = (seconds / 60).coerceAtLeast(1)
+
+                    val remote = trainingRemoteRepository.createTraining(
+                        dateEpochDay = selectedDay,
+                        title = title,
+                        caloriesBurned = caloriesBurned,
+                        durationMinutes = durationMinutes,
+                    )
+
                     withContext(Dispatchers.IO) {
-                        val title = "Планка: ${seconds}с"
-                        val xp = (seconds / 10).coerceAtLeast(5) // 10 сек = 1 XP, минимум 5
+                        // Cache locally (always) so UI updates immediately
                         db.trainingDao().insert(
                             TrainingEntity(
                                 userId = userId,
                                 dateEpochDay = selectedDay,
                                 title = title,
-                                caloriesBurned = (seconds * 0.1).toInt(), // Примерный расход
-                                durationMinutes = (seconds / 60).coerceAtLeast(1),
+                                caloriesBurned = caloriesBurned,
+                                durationMinutes = durationMinutes,
                                 createdAtEpochMs = System.currentTimeMillis()
                             )
                         )
+
+                        val xp = (seconds / 10).coerceAtLeast(5) // Local XP for now
                         db.xpDao().insert(
                             XpEventEntity(
                                 userId = userId,
@@ -162,7 +177,15 @@ fun TrainingsScreen() {
             onAdd = { title, duration, calories ->
                 if (userId == null) return@AddTrainingDialog
                 scope.launch {
+                    val remote = trainingRemoteRepository.createTraining(
+                        dateEpochDay = selectedDay,
+                        title = title,
+                        caloriesBurned = calories,
+                        durationMinutes = duration,
+                    )
+
                     withContext(Dispatchers.IO) {
+                        // Cache locally (always) so UI updates immediately
                         db.trainingDao().insert(
                             TrainingEntity(
                                 userId = userId,

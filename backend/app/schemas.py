@@ -157,6 +157,24 @@ class FoodEntryResponse(BaseModel):
     created_at: str
 
 
+class TrainingCreateRequest(BaseModel):
+    date_epoch_day: int
+    title: str = Field(min_length=1, max_length=256)
+    description: str | None = Field(default=None, max_length=512)
+    calories_burned: int = Field(ge=0)
+    duration_minutes: int = Field(ge=0)
+
+
+class TrainingEntryResponse(BaseModel):
+    id: int
+    date_epoch_day: int
+    title: str
+    description: str | None = None
+    calories_burned: int
+    duration_minutes: int
+    created_at: str
+
+
 
 
 

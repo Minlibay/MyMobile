@@ -144,6 +144,21 @@ class StepEntry(Base):
     user: Mapped["User"] = relationship()
 
 
+class TrainingEntry(Base):
+    __tablename__ = "training_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    date_epoch_day: Mapped[int] = mapped_column(Integer, index=True)
+    title: Mapped[str] = mapped_column(String(256))
+    description: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    calories_burned: Mapped[int] = mapped_column(Integer, default=0)
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+
+    user: Mapped["User"] = relationship()
+
+
 class FoodEntry(Base):
     __tablename__ = "food_entries"
 
