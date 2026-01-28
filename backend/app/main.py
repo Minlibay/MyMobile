@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import delete, select, update, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
@@ -1426,8 +1427,22 @@ def create_xp_event_me(
         created_at=now(),
     )
     db.add(row)
-    db.commit()
-    db.refresh(row)
+    try:
+        db.commit()
+        db.refresh(row)
+    except IntegrityError:
+        db.rollback()
+        existing = db.execute(
+            select(XpEvent).where(
+                XpEvent.user_id == user.id,
+                XpEvent.date_epoch_day == req.date_epoch_day,
+                XpEvent.type == req.type,
+                XpEvent.note == req.note,
+            )
+        ).scalar_one_or_none()
+        if existing is None:
+            raise
+        row = existing
     return XpEventResponse(
         id=row.id,
         date_epoch_day=row.date_epoch_day,
