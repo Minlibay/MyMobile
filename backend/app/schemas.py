@@ -242,6 +242,17 @@ class SyncBatchResponse(BaseModel):
     errors: List[str] = Field(default_factory=list)
 
 
+class AdminSettingsRequest(BaseModel):
+    openrouter_api_key: str | None = Field(default=None, max_length=256)
+    openrouter_model: str | None = Field(default=None, max_length=128)
+
+
+class AdminSettingsResponse(BaseModel):
+    openrouter_api_key: str | None = None
+    openrouter_model: str | None = None
+    updated_at: str
+
+
 
 
 

@@ -4,6 +4,7 @@ import com.example.zhivoy.data.session.SessionStore
 import com.example.zhivoy.network.api.AdsApi
 import com.example.zhivoy.network.api.AuthApi
 import com.example.zhivoy.network.api.OpenRouterApi
+import com.example.zhivoy.network.api.AdminSettingsApi
 import com.example.zhivoy.network.api.FamilyApi
 import com.example.zhivoy.network.api.FoodApi
 import com.example.zhivoy.network.api.BookApi
@@ -190,6 +191,24 @@ object ApiClient {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(SyncApi::class.java)
+    }
+
+    fun createAdminSettingsApi(): AdminSettingsApi {
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
+        val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+            
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(AdminSettingsApi::class.java)
     }
 
     fun createOpenRouterApi(): OpenRouterApi {

@@ -34,6 +34,17 @@ class AiChatViewModel(
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
+    private val _isConfigured = MutableStateFlow(false)
+    val isConfigured = _isConfigured.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val settings = repository.getSettings()
+            _isConfigured.value = settings.isSuccess && 
+                settings.getOrNull()?.openrouter_api_key?.isNotBlank() == true
+        }
+    }
+
     fun sendMessage(text: String?, imageUri: Uri?, context: Context) {
         if (text.isNullOrBlank() && imageUri == null) return
 

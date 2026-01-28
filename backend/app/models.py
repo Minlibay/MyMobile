@@ -204,6 +204,15 @@ class SyncQueue(Base):
     user: Mapped["User"] = relationship()
 
 
+class AdminSettings(Base):
+    __tablename__ = "admin_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    openrouter_api_key: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    openrouter_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), index=True)
+
+
 class TrainingEntry(Base):
     __tablename__ = "training_entries"
 

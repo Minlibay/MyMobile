@@ -59,6 +59,7 @@ import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.BuildConfig
 import com.example.zhivoy.data.entities.AchievementEntity
 import com.example.zhivoy.data.repository.AiChatRepository
+import com.example.zhivoy.data.repository.AdminSettingsRepository
 import com.example.zhivoy.data.repository.FoodRemoteRepository
 import com.example.zhivoy.data.repository.BookRemoteRepository
 import com.example.zhivoy.data.repository.XpRemoteRepository
@@ -109,8 +110,10 @@ fun HomeScreen() {
             com.example.zhivoy.network.ApiClient.createUserSettingsApi(sessionStore),
             db.profileDao(),
             db.userSettingsDao(),
+            SyncRepository(sessionStore, db),
         )
     }
+    val adminSettingsRepository = remember { AdminSettingsRepository() }
     val waterRepository = remember(sessionStore) {
         WaterRepository(sessionStore)
     }
@@ -359,10 +362,9 @@ fun HomeScreen() {
     }
 
     val aiChatViewModel = remember(userId) {
-        val key = BuildConfig.OPENROUTER_API_KEY
-        if (userId != null && key.isNotBlank()) {
+        if (userId != null) {
             AiChatViewModel(
-                AiChatRepository(openRouterApi, db.foodDao(), foodRemoteRepository, key),
+                AiChatRepository(openRouterApi, db.foodDao(), foodRemoteRepository, adminSettingsRepository),
                 userId
             )
         } else null
@@ -553,7 +555,7 @@ fun HomeScreen() {
     }
 
     if (showAiChat) {
-        if (aiChatViewModel != null) {
+        if (aiChatViewModel != null && aiChatViewModel.isConfigured.collectAsState(initial = false).value) {
             AiChatDialog(
                 viewModel = aiChatViewModel,
                 onDismiss = { showAiChat = false }
@@ -567,16 +569,11 @@ fun HomeScreen() {
                         androidx.compose.material3.Text("Ок")
                     }
                 },
-                dismissButton = {
-                    androidx.compose.material3.TextButton(onClick = { showAiChat = false }) {
-                        androidx.compose.material3.Text("Отмена")
-                    }
-                },
                 title = { androidx.compose.material3.Text("API ключ не настроен") },
                 text = {
                     androidx.compose.material3.Text(
-                        "Для использования ИИ помощника нужно задать OPENROUTER_API_KEY в gradle.properties (или local.properties), " +
-                            "либо через переменную окружения OPENROUTER_API_KEY."
+                        "Для использования ИИ помощника нужно настроить OpenRouter API ключ в админке: " +
+                            "http://45.134.12.54/admin/settings"
                     )
                 }
             )

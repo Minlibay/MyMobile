@@ -11,7 +11,7 @@ from sqlalchemy import delete, select, update, func
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
-from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry, BookEntry, XpEvent, UserAchievement, SyncQueue
+from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry, BookEntry, XpEvent, UserAchievement, SyncQueue, AdminSettings
 from app.schemas import (
     AdUnitUpsert,
     AdsConfigResponse,
@@ -49,6 +49,8 @@ from app.schemas import (
     SyncBatchItem,
     SyncBatchRequest,
     SyncBatchResponse,
+    AdminSettingsRequest,
+    AdminSettingsResponse,
     TokenPair,
     UserMeResponse,
     UserSettingsRequest,
@@ -211,7 +213,19 @@ def admin_register_post(
 @app.post("/admin/logout")
 def admin_logout(request: Request):
     request.session.clear()
-    return RedirectResponse(url="/admin/login", status_code=303)
+    return RedirectResponse(url="/admin/integration", status_code=303)
+
+
+@app.get("/admin/settings", response_class=HTMLResponse)
+def admin_settings(request: Request, db: Session = Depends(get_db)):
+    guard = admin_guard(request, db)
+    if isinstance(guard, RedirectResponse):
+        return guard
+    
+    return templates.TemplateResponse(
+        "admin_settings.html",
+        {"request": request},
+    )
 
 
 @app.get("/admin/users", response_class=HTMLResponse)
@@ -1584,4 +1598,54 @@ def sync_batch(
     
     db.commit()
     return SyncBatchResponse(processed=processed, failed=failed, errors=errors)
+
+
+@app.get("/admin/settings", response_model=AdminSettingsResponse)
+def get_admin_settings(
+    db: Session = Depends(get_db),
+) -> AdminSettingsResponse:
+    row = db.execute(select(AdminSettings)).scalar_one_or_none()
+    if row is None:
+        # Create default settings
+        row = AdminSettings(
+            openrouter_api_key=None,
+            openrouter_model=None,
+            updated_at=now(),
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    
+    return AdminSettingsResponse(
+        openrouter_api_key=row.openrouter_api_key,
+        openrouter_model=row.openrouter_model,
+        updated_at=row.updated_at.isoformat(),
+    )
+
+
+@app.put("/admin/settings", response_model=AdminSettingsResponse)
+def update_admin_settings(
+    req: AdminSettingsRequest,
+    db: Session = Depends(get_db),
+) -> AdminSettingsResponse:
+    row = db.execute(select(AdminSettings)).scalar_one_or_none()
+    if row is None:
+        row = AdminSettings(
+            openrouter_api_key=req.openrouter_api_key,
+            openrouter_model=req.openrouter_model,
+            updated_at=now(),
+        )
+        db.add(row)
+    else:
+        row.openrouter_api_key = req.openrouter_api_key
+        row.openrouter_model = req.openrouter_model
+        row.updated_at = now()
+    
+    db.commit()
+    db.refresh(row)
+    return AdminSettingsResponse(
+        openrouter_api_key=row.openrouter_api_key,
+        openrouter_model=row.openrouter_model,
+        updated_at=row.updated_at.isoformat(),
+    )
 

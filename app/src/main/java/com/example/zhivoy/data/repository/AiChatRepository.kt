@@ -24,11 +24,27 @@ class AiChatRepository(
     private val openRouterApi: OpenRouterApi,
     private val foodDao: FoodDao,
     private val foodRemoteRepository: FoodRemoteRepository,
-    private val apiKey: String
+    private val adminSettingsRepository: AdminSettingsRepository,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
+    private suspend fun getAiConfig(): Pair<String, String> {
+        val settings = adminSettingsRepository.getSettings()
+        return if (settings.isSuccess) {
+            val apiKey = settings.getOrNull()?.openrouter_api_key ?: ""
+            val model = settings.getOrNull()?.openrouter_model ?: "anthropic/claude-3-haiku"
+            Pair(apiKey, model)
+        } else {
+            Pair("", "anthropic/claude-3-haiku") // Fallback
+        }
+    }
+
     suspend fun processFoodInput(userId: Long, text: String?, imageBase64: String?): Result<FoodAiResponse> {
+        val (apiKey, model) = getAiConfig()
+        if (apiKey.isEmpty()) {
+            return Result.failure(Exception("OpenRouter API key not configured"))
+        }
+
         val systemPrompt = AiConfig.SYSTEM_PROMPT
 
         val contentParts = mutableListOf<ContentPart>()
@@ -43,12 +59,12 @@ class AiChatRepository(
         )
 
         val request = OpenRouterRequest(
-            model = AiConfig.MODEL,
+            model = model,
             messages = messages
         )
 
         return try {
-            Log.d("AiChatRepository", "Sending AI request: model=${AiConfig.MODEL}, hasText=${!text.isNullOrBlank()}, hasImage=${imageBase64 != null}")
+            Log.d("AiChatRepository", "Sending AI request: model=$model, hasText=${!text.isNullOrBlank()}, hasImage=${imageBase64 != null}")
             val response = openRouterApi.getCompletion("Bearer $apiKey", request)
             Log.d("AiChatRepository", "AI response received: choices=${response.choices.size}")
 
