@@ -61,6 +61,7 @@ import com.example.zhivoy.data.entities.AchievementEntity
 import com.example.zhivoy.data.repository.AiChatRepository
 import com.example.zhivoy.data.repository.FoodRemoteRepository
 import com.example.zhivoy.data.repository.BookRemoteRepository
+import com.example.zhivoy.data.repository.XpRemoteRepository
 import com.example.zhivoy.data.repository.SmokeRemoteRepository
 import com.example.zhivoy.data.repository.WaterRepository
 import com.example.zhivoy.data.repository.WeightRemoteRepository
@@ -120,6 +121,9 @@ fun HomeScreen() {
     }
     val bookRemoteRepository = remember(sessionStore) {
         BookRemoteRepository(sessionStore)
+    }
+    val xpRemoteRepository = remember(sessionStore) {
+        XpRemoteRepository(sessionStore)
     }
     val session by sessionStore.session.collectAsState(initial = null)
     val userId = session?.userId
@@ -276,6 +280,15 @@ fun HomeScreen() {
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         showConfetti = true
         
+        // Server-first XP event
+        xpRemoteRepository.createXpEvent(
+            dateEpochDay = today,
+            type = type,
+            points = points,
+            note = note,
+        )
+        
+        // Cache locally (always) so UI updates immediately
         db.xpDao().insert(
             com.example.zhivoy.data.entities.XpEventEntity(
                 userId = userId,
@@ -383,7 +396,15 @@ fun HomeScreen() {
                         }
                     }
 
-                    // Local XP (for now). Will be moved to backend later.
+                    // Server-first XP event
+                    xpRemoteRepository.createXpEvent(
+                        dateEpochDay = today,
+                        type = "calories",
+                        points = 5,
+                        note = "Food: $title",
+                    )
+
+                    // Cache locally (always) so UI updates immediately
                     withContext(Dispatchers.IO) {
                         db.xpDao().insert(
                             com.example.zhivoy.data.entities.XpEventEntity(
@@ -420,7 +441,14 @@ fun HomeScreen() {
                                 createdAtEpochMs = System.currentTimeMillis(),
                             ),
                         )
-                        // XP за чек-ин веса
+                        // Server-first XP event
+                        xpRemoteRepository.createXpEvent(
+                            dateEpochDay = today,
+                            type = "weight",
+                            points = 10,
+                            note = "Weight check-in",
+                        )
+                        // Cache locally (always) so UI updates immediately
                         db.xpDao().insert(
                             com.example.zhivoy.data.entities.XpEventEntity(
                                 userId = userId,
@@ -459,6 +487,14 @@ fun HomeScreen() {
                                 createdAtEpochMs = System.currentTimeMillis(),
                             ),
                         )
+                        // Server-first XP event
+                        xpRemoteRepository.createXpEvent(
+                            dateEpochDay = today,
+                            type = "book",
+                            points = 25,
+                            note = "Book: $title",
+                        )
+                        // Cache locally (always) so UI updates immediately
                         db.xpDao().insert(
                             com.example.zhivoy.data.entities.XpEventEntity(
                                 userId = userId,
@@ -771,7 +807,14 @@ fun HomeScreen() {
                                         }
                                     }
 
-                                    // Local XP (for now). Will be moved to backend later.
+                                    // Server-first XP event
+                                    xpRemoteRepository.createXpEvent(
+                                        dateEpochDay = today,
+                                        type = "water",
+                                        points = 2,
+                                        note = "Выпил $ml мл воды",
+                                    )
+                                    // Cache locally (always) so UI updates immediately
                                     withContext(Dispatchers.IO) {
                                         db.xpDao().insert(
                                             com.example.zhivoy.data.entities.XpEventEntity(

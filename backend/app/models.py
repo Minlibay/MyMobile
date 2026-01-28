@@ -158,6 +158,37 @@ class BookEntry(Base):
     user: Mapped["User"] = relationship()
 
 
+class XpEvent(Base):
+    __tablename__ = "xp_events"
+    __table_args__ = (
+        UniqueConstraint("user_id", "date_epoch_day", "type", "note", name="uq_xp_events_user_day_type_note"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    date_epoch_day: Mapped[int] = mapped_column(Integer, index=True)
+    type: Mapped[str] = mapped_column(String(64), index=True)
+    points: Mapped[int] = mapped_column(Integer)
+    note: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), index=True)
+
+    user: Mapped["User"] = relationship()
+
+
+class UserAchievement(Base):
+    __tablename__ = "user_achievements"
+    __table_args__ = (
+        UniqueConstraint("user_id", "code", name="uq_user_achievements_user_code"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    code: Mapped[str] = mapped_column(String(128), index=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), index=True)
+
+    user: Mapped["User"] = relationship()
+
+
 class TrainingEntry(Base):
     __tablename__ = "training_entries"
 

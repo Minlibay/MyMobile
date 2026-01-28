@@ -194,6 +194,38 @@ class BookEntryResponse(BaseModel):
     created_at: str
 
 
+class XpEventCreateRequest(BaseModel):
+    date_epoch_day: int
+    type: str = Field(min_length=1, max_length=64)
+    points: int = Field(ge=0)
+    note: str | None = Field(default=None, max_length=256)
+
+
+class XpEventResponse(BaseModel):
+    id: int
+    date_epoch_day: int
+    type: str
+    points: int
+    note: str | None = None
+    created_at: str
+
+
+class XpDailyAggregateResponse(BaseModel):
+    date_epoch_day: int
+    total_points: int
+
+
+class XpTotalResponse(BaseModel):
+    total_points: int
+    level: int
+
+
+class UserAchievementResponse(BaseModel):
+    id: int
+    code: str
+    created_at: str
+
+
 
 
 

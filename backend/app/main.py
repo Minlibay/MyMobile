@@ -7,11 +7,11 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, update, func
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
-from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry, BookEntry
+from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry, BookEntry, XpEvent, UserAchievement
 from app.schemas import (
     AdUnitUpsert,
     AdsConfigResponse,
@@ -41,6 +41,11 @@ from app.schemas import (
     BookCreateRequest,
     BookEntryResponse,
     BookProgressRequest,
+    XpEventCreateRequest,
+    XpEventResponse,
+    XpDailyAggregateResponse,
+    XpTotalResponse,
+    UserAchievementResponse,
     TokenPair,
     UserMeResponse,
     UserSettingsRequest,
@@ -1328,4 +1333,102 @@ def upsert_smoke_me(
         packs_per_day=row.packs_per_day,
         updated_at=row.updated_at.isoformat(),
     )
+
+
+@app.post("/xp/me", response_model=XpEventResponse)
+def create_xp_event_me(
+    req: XpEventCreateRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> XpEventResponse:
+    row = XpEvent(
+        user_id=user.id,
+        date_epoch_day=req.date_epoch_day,
+        type=req.type,
+        points=req.points,
+        note=req.note,
+        created_at=now(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return XpEventResponse(
+        id=row.id,
+        date_epoch_day=row.date_epoch_day,
+        type=row.type,
+        points=row.points,
+        note=row.note,
+        created_at=row.created_at.isoformat(),
+    )
+
+
+@app.get("/xp/me/daily", response_model=List[XpDailyAggregateResponse])
+def get_xp_daily_me(
+    start: int,
+    end: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> List[XpDailyAggregateResponse]:
+    rows = (
+        db.execute(
+            select(
+                XpEvent.date_epoch_day,
+                func.sum(XpEvent.points).label("total_points"),
+            )
+            .where(
+                XpEvent.user_id == user.id,
+                XpEvent.date_epoch_day >= start,
+                XpEvent.date_epoch_day <= end,
+            )
+            .group_by(XpEvent.date_epoch_day)
+            .order_by(XpEvent.date_epoch_day)
+        )
+        .all()
+    )
+    return [
+        XpDailyAggregateResponse(
+            date_epoch_day=row.date_epoch_day,
+            total_points=int(row.total_points) if row.total_points else 0,
+        )
+        for row in rows
+    ]
+
+
+@app.get("/xp/me/total", response_model=XpTotalResponse)
+def get_xp_total_me(
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> XpTotalResponse:
+    total = (
+        db.execute(select(func.coalesce(func.sum(XpEvent.points), 0)).where(XpEvent.user_id == user.id))
+        .scalar()
+    )
+    total_points = int(total) if total else 0
+    # Simple level formula: level = floor(sqrt(total_points / 100))
+    level = int((total_points // 100) ** 0.5) if total_points > 0 else 0
+    return XpTotalResponse(total_points=total_points, level=level)
+
+
+@app.get("/achievements/me", response_model=List[UserAchievementResponse])
+def get_achievements_me(
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> List[UserAchievementResponse]:
+    rows = (
+        db.execute(
+            select(UserAchievement)
+            .where(UserAchievement.user_id == user.id)
+            .order_by(UserAchievement.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        UserAchievementResponse(
+            id=r.id,
+            code=r.code,
+            created_at=r.created_at.isoformat(),
+        )
+        for r in rows
+    ]
 

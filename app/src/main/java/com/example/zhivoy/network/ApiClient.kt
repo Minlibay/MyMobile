@@ -8,6 +8,7 @@ import com.example.zhivoy.network.api.FamilyApi
 import com.example.zhivoy.network.api.FoodApi
 import com.example.zhivoy.network.api.BookApi
 import com.example.zhivoy.network.api.TrainingApi
+import com.example.zhivoy.network.api.XpApi
 import com.example.zhivoy.network.api.SmokeApi
 import com.example.zhivoy.network.api.StepsApi
 import com.example.zhivoy.network.api.WeightApi
@@ -168,6 +169,16 @@ object ApiClient {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(BookApi::class.java)
+    }
+
+    fun createXpApi(sessionStore: SessionStore): XpApi {
+        val okHttpClient = createOkHttpClient(sessionStore)
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(XpApi::class.java)
     }
 
     fun createOpenRouterApi(): OpenRouterApi {

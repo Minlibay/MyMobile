@@ -30,6 +30,7 @@ import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.data.entities.SmokeStatusEntity
 import com.example.zhivoy.data.repository.SmokeRemoteRepository
 import com.example.zhivoy.data.repository.WeightRemoteRepository
+import com.example.zhivoy.data.repository.XpRemoteRepository
 import com.example.zhivoy.ui.components.ModernCard
 import com.example.zhivoy.ui.components.ModernButton
 import com.example.zhivoy.ui.components.ModernTextField
@@ -72,6 +73,7 @@ fun HealthScreen() {
 
     val weightRemoteRepository = remember(sessionStore) { WeightRemoteRepository(sessionStore) }
     val smokeRemoteRepository = remember(sessionStore) { SmokeRemoteRepository(sessionStore) }
+    val xpRemoteRepository = remember(sessionStore) { XpRemoteRepository(sessionStore) }
 
     val latestWeight by (if (userId != null) db.weightDao().observeLatest(userId) else kotlinx.coroutines.flow.flowOf(null))
         .collectAsState(initial = null)
@@ -395,6 +397,14 @@ fun HealthScreen() {
                             // XP за день без курения (простая логика: 1 событие в день)
                             // Начисляем XP только если значения действительно изменились
                             if (isChanged) {
+                                // Server-first XP event
+                                xpRemoteRepository.createXpEvent(
+                                    dateEpochDay = today,
+                                    type = "nosmoke",
+                                    points = 10,
+                                    note = "No smoke settings updated",
+                                )
+                                // Cache locally (always) so UI updates immediately
                                 db.xpDao().insert(
                                     com.example.zhivoy.data.entities.XpEventEntity(
                                         userId = userId,

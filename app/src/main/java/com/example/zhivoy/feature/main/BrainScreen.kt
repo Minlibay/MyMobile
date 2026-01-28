@@ -20,6 +20,7 @@ import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.data.entities.BookEntryEntity
 import com.example.zhivoy.data.entities.XpEventEntity
 import com.example.zhivoy.data.repository.BookRemoteRepository
+import com.example.zhivoy.data.repository.XpRemoteRepository
 import com.example.zhivoy.feature.main.brain.AddBookDialog
 import com.example.zhivoy.feature.main.brain.UpdateProgressDialog
 import com.example.zhivoy.ui.components.ModernButton
@@ -38,6 +39,8 @@ fun BrainScreen() {
     val scope = rememberCoroutineScope()
 
     val bookRemoteRepository = remember(sessionStore) { BookRemoteRepository(sessionStore) }
+
+    val xpRemoteRepository = remember(sessionStore) { XpRemoteRepository(sessionStore) }
 
     val books by (if (userId != null) db.bookDao().observeAll(userId) else kotlinx.coroutines.flow.flowOf(emptyList()))
         .collectAsState(initial = emptyList())
@@ -191,7 +194,14 @@ fun BrainScreen() {
                                     createdAtEpochMs = System.currentTimeMillis()
                                 )
                             )
-                            // Award initial XP for starting a book
+                            // Server-first XP event
+                            xpRemoteRepository.createXpEvent(
+                                dateEpochDay = DateTime.epochDayNow(),
+                                type = "book_start",
+                                points = 10,
+                                note = "New book: $title",
+                            )
+                            // Cache locally (always) so UI updates immediately
                             db.xpDao().insert(
                                 XpEventEntity(
                                     userId = userId,
@@ -227,6 +237,14 @@ fun BrainScreen() {
                             if (diff > 0) {
                                 // Award XP based on pages read (1 XP per 5 pages, example)
                                 val xp = (diff / 5).coerceAtLeast(1)
+                                // Server-first XP event
+                                xpRemoteRepository.createXpEvent(
+                                    dateEpochDay = DateTime.epochDayNow(),
+                                    type = "book_progress",
+                                    points = xp,
+                                    note = "Read $diff pages in ${updatingBook!!.title}",
+                                )
+                                // Cache locally (always) so UI updates immediately
                                 db.xpDao().insert(
                                     XpEventEntity(
                                         userId = userId,

@@ -35,6 +35,7 @@ import com.example.zhivoy.data.entities.TrainingTemplateEntity
 import com.example.zhivoy.data.entities.TrainingWeekGoalEntity
 import com.example.zhivoy.data.entities.XpEventEntity
 import com.example.zhivoy.data.repository.TrainingRemoteRepository
+import com.example.zhivoy.data.repository.XpRemoteRepository
 import com.example.zhivoy.feature.main.training.AddTemplateDialog
 import com.example.zhivoy.feature.main.training.AddTrainingDialog
 import com.example.zhivoy.feature.main.training.PlankDialog
@@ -61,6 +62,8 @@ fun TrainingsScreen() {
     val haptic = LocalHapticFeedback.current
 
     val trainingRemoteRepository = remember(sessionStore) { TrainingRemoteRepository(sessionStore) }
+
+    val xpRemoteRepository = remember(sessionStore) { XpRemoteRepository(sessionStore) }
 
     val today = DateTime.epochDayNow()
     var selectedDay by remember { mutableIntStateOf(today) }
@@ -128,7 +131,15 @@ fun TrainingsScreen() {
                             )
                         )
 
-                        val xp = (seconds / 10).coerceAtLeast(5) // Local XP for now
+                        val xp = (seconds / 10).coerceAtLeast(5)
+                        // Server-first XP event
+                        xpRemoteRepository.createXpEvent(
+                            dateEpochDay = selectedDay,
+                            type = "plank",
+                            points = xp,
+                            note = title,
+                        )
+                        // Cache locally (always) so UI updates immediately
                         db.xpDao().insert(
                             XpEventEntity(
                                 userId = userId,
@@ -196,6 +207,14 @@ fun TrainingsScreen() {
                                 createdAtEpochMs = System.currentTimeMillis()
                             )
                         )
+                        // Server-first XP event
+                        xpRemoteRepository.createXpEvent(
+                            dateEpochDay = selectedDay,
+                            type = "training",
+                            points = 30,
+                            note = "Training: $title",
+                        )
+                        // Cache locally (always) so UI updates immediately
                         db.xpDao().insert(
                             XpEventEntity(
                                 userId = userId,
@@ -346,6 +365,14 @@ fun TrainingsScreen() {
                                             createdAtEpochMs = System.currentTimeMillis()
                                         )
                                     )
+                                    // Server-first XP event
+                                    xpRemoteRepository.createXpEvent(
+                                        dateEpochDay = selectedDay,
+                                        type = "training",
+                                        points = 40, // Bonus for planned training
+                                        note = "Planned training done",
+                                    )
+                                    // Cache locally (always) so UI updates immediately
                                     db.xpDao().insert(
                                         XpEventEntity(
                                             userId = userId,
