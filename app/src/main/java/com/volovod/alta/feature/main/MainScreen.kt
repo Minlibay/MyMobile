@@ -23,6 +23,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -42,11 +43,14 @@ import com.volovod.alta.data.repository.AuthRepository
 import com.volovod.alta.data.repository.SyncRepository
 import com.volovod.alta.network.ApiClient
 import com.volovod.alta.feature.main.profile.AchievementsScreen
+import com.volovod.alta.feature.main.privacy.PrivacyPolicyDialog
 import com.volovod.alta.steps.StepsPermissionAndTracking
 import androidx.compose.material3.SnackbarHostState
 import com.volovod.alta.ui.components.ModernSnackbarHost
 import com.volovod.alta.ui.components.showSuccess
 import androidx.compose.ui.Alignment
+import androidx.compose.runtime.LaunchedEffect
+import com.volovod.alta.network.dto.PrivacyPolicyResponseDto
 import kotlinx.coroutines.launch
 
 private data class MainTab(
@@ -78,7 +82,47 @@ fun MainScreen(
     val scope = rememberCoroutineScope()
     var showMenu by remember { mutableStateOf(false) }
     var showAchievements by remember { mutableStateOf(false) }
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
+    var requirePrivacyAccept by remember { mutableStateOf(false) }
+    val privacyPolicyState = remember { mutableStateOf<PrivacyPolicyResponseDto?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val privacyApi = remember(sessionStore) { ApiClient.createPrivacyPolicyApi(sessionStore) }
+
+    LaunchedEffect(Unit) {
+        runCatching { privacyApi.getPrivacyPolicy() }
+            .onSuccess { policy -> privacyPolicyState.value = policy }
+
+        val userSettings = authRepository.getUserSettings().getOrNull()
+        val policyUpdatedAt = privacyPolicyState.value?.updated_at
+        val acceptedPolicyUpdatedAt = userSettings?.privacy_policy_accepted_policy_updated_at
+        val acceptedAt = userSettings?.privacy_policy_accepted_at
+
+        val needsAccept = policyUpdatedAt != null && (acceptedAt == null || acceptedPolicyUpdatedAt != policyUpdatedAt)
+        if (needsAccept) {
+            requirePrivacyAccept = true
+            showPrivacyPolicy = true
+        }
+    }
+
+    if (showPrivacyPolicy && privacyPolicyState.value != null) {
+        PrivacyPolicyDialog(
+            text = privacyPolicyState.value!!.text,
+            requireAccept = requirePrivacyAccept,
+            onDismiss = {
+                if (!requirePrivacyAccept) {
+                    showPrivacyPolicy = false
+                }
+            },
+            onAccept = {
+                scope.launch {
+                    kotlin.runCatching { privacyApi.acceptPrivacyPolicy() }
+                    requirePrivacyAccept = false
+                    showPrivacyPolicy = false
+                }
+            },
+        )
+    }
 
     if (showAchievements) {
         AchievementsScreen(onBack = { showAchievements = false })
@@ -144,6 +188,15 @@ fun MainScreen(
                                     showMenu = false
                                 },
                                 leadingIcon = { Icon(Icons.Default.EmojiEvents, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Политика конфиденциальности") },
+                                onClick = {
+                                    requirePrivacyAccept = false
+                                    showPrivacyPolicy = true
+                                    showMenu = false
+                                },
+                                leadingIcon = { Icon(Icons.Default.PrivacyTip, contentDescription = null) }
                             )
                             DropdownMenuItem(
                                 text = { Text("Выйти") },

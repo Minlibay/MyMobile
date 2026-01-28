@@ -11,6 +11,8 @@ data class UserSettingsResponseDto(
     val calorie_goal_override: Int?,
     val target_weight_kg: Double? = null,
     val reminders_enabled: Boolean,
+    val privacy_policy_accepted_at: String? = null,
+    val privacy_policy_accepted_policy_updated_at: String? = null,
     val updated_at: String,
 )
 

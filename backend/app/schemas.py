@@ -76,6 +76,8 @@ class UserSettingsRequest(BaseModel):
 class UserSettingsResponse(UserSettingsRequest):
     id: int
     user_id: int
+    privacy_policy_accepted_at: str | None = None
+    privacy_policy_accepted_policy_updated_at: str | None = None
     updated_at: str
 
 
@@ -256,6 +258,7 @@ class AdminSettingsRequest(BaseModel):
     appodeal_banner_enabled: bool | None = None
     appodeal_interstitial_enabled: bool | None = None
     appodeal_rewarded_enabled: bool | None = None
+    privacy_policy_text: str | None = None
 
 
 class AdminSettingsResponse(BaseModel):
@@ -266,7 +269,19 @@ class AdminSettingsResponse(BaseModel):
     appodeal_banner_enabled: bool = True
     appodeal_interstitial_enabled: bool = True
     appodeal_rewarded_enabled: bool = True
+    privacy_policy_text: str | None = None
+    privacy_policy_updated_at: str | None = None
     updated_at: str
+
+
+class PrivacyPolicyResponse(BaseModel):
+    text: str
+    updated_at: str
+
+
+class PrivacyPolicyAcceptResponse(BaseModel):
+    accepted_at: str
+    policy_updated_at: str
 
 
 

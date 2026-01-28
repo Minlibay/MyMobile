@@ -52,6 +52,8 @@ from app.schemas import (
     SyncBatchResponse,
     AdminSettingsRequest,
     AdminSettingsResponse,
+    PrivacyPolicyAcceptResponse,
+    PrivacyPolicyResponse,
     TokenPair,
     UserMeResponse,
     UserSettingsRequest,
@@ -660,6 +662,8 @@ def get_user_settings(user: User = Depends(require_user), db: Session = Depends(
         calorie_goal_override=user_settings.calorie_goal_override,
         target_weight_kg=user_settings.target_weight_kg,
         reminders_enabled=user_settings.reminders_enabled,
+        privacy_policy_accepted_at=user_settings.privacy_policy_accepted_at.isoformat() if user_settings.privacy_policy_accepted_at else None,
+        privacy_policy_accepted_policy_updated_at=user_settings.privacy_policy_accepted_policy_updated_at.isoformat() if user_settings.privacy_policy_accepted_policy_updated_at else None,
         updated_at=user_settings.updated_at.isoformat(),
     )
 
@@ -695,7 +699,38 @@ def upsert_user_settings(req: UserSettingsRequest, user: User = Depends(require_
         calorie_goal_override=user_settings.calorie_goal_override,
         target_weight_kg=user_settings.target_weight_kg,
         reminders_enabled=user_settings.reminders_enabled,
+        privacy_policy_accepted_at=user_settings.privacy_policy_accepted_at.isoformat() if user_settings.privacy_policy_accepted_at else None,
+        privacy_policy_accepted_policy_updated_at=user_settings.privacy_policy_accepted_policy_updated_at.isoformat() if user_settings.privacy_policy_accepted_policy_updated_at else None,
         updated_at=user_settings.updated_at.isoformat(),
+    )
+
+
+@app.get("/privacy_policy", response_model=PrivacyPolicyResponse)
+def get_privacy_policy(db: Session = Depends(get_db)) -> PrivacyPolicyResponse:
+    row = db.execute(select(AdminSettings)).scalar_one_or_none()
+    if row is None or not row.privacy_policy_text or not row.privacy_policy_updated_at:
+        raise HTTPException(status_code=404, detail="Privacy policy not configured")
+    return PrivacyPolicyResponse(text=row.privacy_policy_text, updated_at=row.privacy_policy_updated_at.isoformat())
+
+
+@app.post("/privacy_policy/accept", response_model=PrivacyPolicyAcceptResponse)
+def accept_privacy_policy(user: User = Depends(require_user), db: Session = Depends(get_db)) -> PrivacyPolicyAcceptResponse:
+    policy = db.execute(select(AdminSettings)).scalar_one_or_none()
+    if policy is None or not policy.privacy_policy_updated_at:
+        raise HTTPException(status_code=404, detail="Privacy policy not configured")
+
+    user_settings = db.execute(select(UserSettings).where(UserSettings.user_id == user.id)).scalar_one_or_none()
+    if user_settings is None:
+        raise HTTPException(status_code=404, detail="User settings not found")
+
+    accepted_at = now()
+    user_settings.privacy_policy_accepted_at = accepted_at
+    user_settings.privacy_policy_accepted_policy_updated_at = policy.privacy_policy_updated_at
+    user_settings.updated_at = now()
+    db.commit()
+    return PrivacyPolicyAcceptResponse(
+        accepted_at=accepted_at.isoformat(),
+        policy_updated_at=policy.privacy_policy_updated_at.isoformat(),
     )
 
 
@@ -1689,6 +1724,8 @@ def get_admin_settings(
             appodeal_banner_enabled=True,
             appodeal_interstitial_enabled=True,
             appodeal_rewarded_enabled=True,
+            privacy_policy_text=None,
+            privacy_policy_updated_at=None,
             updated_at=now(),
         )
         db.add(row)
@@ -1703,6 +1740,8 @@ def get_admin_settings(
         appodeal_banner_enabled=row.appodeal_banner_enabled,
         appodeal_interstitial_enabled=row.appodeal_interstitial_enabled,
         appodeal_rewarded_enabled=row.appodeal_rewarded_enabled,
+        privacy_policy_text=row.privacy_policy_text,
+        privacy_policy_updated_at=row.privacy_policy_updated_at.isoformat() if row.privacy_policy_updated_at else None,
         updated_at=row.updated_at.isoformat(),
     )
 
@@ -1722,6 +1761,8 @@ def update_admin_settings(
             appodeal_banner_enabled=req.appodeal_banner_enabled if req.appodeal_banner_enabled is not None else True,
             appodeal_interstitial_enabled=req.appodeal_interstitial_enabled if req.appodeal_interstitial_enabled is not None else True,
             appodeal_rewarded_enabled=req.appodeal_rewarded_enabled if req.appodeal_rewarded_enabled is not None else True,
+            privacy_policy_text=req.privacy_policy_text,
+            privacy_policy_updated_at=now() if req.privacy_policy_text else None,
             updated_at=now(),
         )
         db.add(row)
@@ -1737,6 +1778,10 @@ def update_admin_settings(
             row.appodeal_interstitial_enabled = req.appodeal_interstitial_enabled
         if req.appodeal_rewarded_enabled is not None:
             row.appodeal_rewarded_enabled = req.appodeal_rewarded_enabled
+
+        if req.privacy_policy_text is not None and req.privacy_policy_text != row.privacy_policy_text:
+            row.privacy_policy_text = req.privacy_policy_text
+            row.privacy_policy_updated_at = now()
         row.updated_at = now()
     
     db.commit()
@@ -1749,6 +1794,8 @@ def update_admin_settings(
         appodeal_banner_enabled=row.appodeal_banner_enabled,
         appodeal_interstitial_enabled=row.appodeal_interstitial_enabled,
         appodeal_rewarded_enabled=row.appodeal_rewarded_enabled,
+        privacy_policy_text=row.privacy_policy_text,
+        privacy_policy_updated_at=row.privacy_policy_updated_at.isoformat() if row.privacy_policy_updated_at else None,
         updated_at=row.updated_at.isoformat(),
     )
 

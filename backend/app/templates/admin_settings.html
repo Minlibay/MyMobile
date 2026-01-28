@@ -66,6 +66,12 @@
                                 <input type="text" class="form-control" id="openrouter_model" placeholder="anthropic/claude-3-haiku">
                                 <div class="form-text">Название модели для использования в OpenRouter (например: anthropic/claude-3-haiku)</div>
                             </div>
+
+                            <div class="mb-3">
+                                <label for="privacy_policy_text" class="form-label">Политика конфиденциальности (текст)</label>
+                                <textarea class="form-control" id="privacy_policy_text" rows="10" placeholder="Текст политики..."></textarea>
+                                <div class="form-text">Этот текст будет показан пользователю в приложении. При изменении пользователям нужно будет принять политику снова.</div>
+                            </div>
                             
                             <div class="d-flex justify-content-between">
                                 <button type="submit" class="btn btn-primary">Сохранить настройки</button>
@@ -97,6 +103,7 @@
                 
                 document.getElementById('openrouter_api_key').value = data.openrouter_api_key || '';
                 document.getElementById('openrouter_model').value = data.openrouter_model || '';
+                document.getElementById('privacy_policy_text').value = data.privacy_policy_text || '';
             } catch (error) {
                 console.error('Ошибка загрузки настроек:', error);
                 showResult('Ошибка загрузки настроек', 'danger');
@@ -109,6 +116,7 @@
             
             const apiKey = document.getElementById('openrouter_api_key').value.trim();
             const model = document.getElementById('openrouter_model').value.trim();
+            const privacyPolicyText = document.getElementById('privacy_policy_text').value;
             
             try {
                 const response = await fetch('/admin/api/settings', {
@@ -119,6 +127,7 @@
                     body: JSON.stringify({
                         openrouter_api_key: apiKey || null,
                         openrouter_model: model || null,
+                        privacy_policy_text: privacyPolicyText || null,
                     }),
                 });
                 

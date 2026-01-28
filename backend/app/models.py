@@ -1,5 +1,5 @@
 import datetime as dt
-from sqlalchemy import String, Integer, BigInteger, Boolean, DateTime, ForeignKey, UniqueConstraint, Float, JSON
+from sqlalchemy import String, Integer, BigInteger, Boolean, DateTime, ForeignKey, UniqueConstraint, Float, JSON, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -91,6 +91,8 @@ class UserSettings(Base):
     step_goal: Mapped[int] = mapped_column(Integer)
     calorie_goal_override: Mapped[int | None] = mapped_column(Integer, nullable=True)
     target_weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    privacy_policy_accepted_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    privacy_policy_accepted_policy_updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reminders_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
@@ -216,6 +218,8 @@ class AdminSettings(Base):
     appodeal_banner_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     appodeal_interstitial_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     appodeal_rewarded_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    privacy_policy_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    privacy_policy_updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), index=True)
 
 
