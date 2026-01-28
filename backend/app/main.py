@@ -52,6 +52,8 @@ from app.schemas import (
     SyncBatchResponse,
     AdminSettingsRequest,
     AdminSettingsResponse,
+    AnnouncementReadResponse,
+    AnnouncementResponse,
     PrivacyPolicyAcceptResponse,
     PrivacyPolicyResponse,
     TokenPair,
@@ -664,6 +666,8 @@ def get_user_settings(user: User = Depends(require_user), db: Session = Depends(
         reminders_enabled=user_settings.reminders_enabled,
         privacy_policy_accepted_at=user_settings.privacy_policy_accepted_at.isoformat() if user_settings.privacy_policy_accepted_at else None,
         privacy_policy_accepted_policy_updated_at=user_settings.privacy_policy_accepted_policy_updated_at.isoformat() if user_settings.privacy_policy_accepted_policy_updated_at else None,
+        announcement_read_at=user_settings.announcement_read_at.isoformat() if user_settings.announcement_read_at else None,
+        announcement_read_announcement_updated_at=user_settings.announcement_read_announcement_updated_at.isoformat() if user_settings.announcement_read_announcement_updated_at else None,
         updated_at=user_settings.updated_at.isoformat(),
     )
 
@@ -731,6 +735,48 @@ def accept_privacy_policy(user: User = Depends(require_user), db: Session = Depe
     return PrivacyPolicyAcceptResponse(
         accepted_at=accepted_at.isoformat(),
         policy_updated_at=policy.privacy_policy_updated_at.isoformat(),
+    )
+
+
+@app.get("/announcement", response_model=AnnouncementResponse)
+def get_announcement(db: Session = Depends(get_db)) -> AnnouncementResponse:
+    row = db.execute(select(AdminSettings)).scalar_one_or_none()
+    if (
+        row is None
+        or not row.announcement_enabled
+        or not row.announcement_text
+        or not row.announcement_updated_at
+    ):
+        raise HTTPException(status_code=404, detail="Announcement not configured")
+
+    return AnnouncementResponse(
+        text=row.announcement_text,
+        updated_at=row.announcement_updated_at.isoformat(),
+        button_enabled=row.announcement_button_enabled,
+        button_text=row.announcement_button_text,
+        button_url=row.announcement_button_url,
+    )
+
+
+@app.post("/announcement/read", response_model=AnnouncementReadResponse)
+def read_announcement(user: User = Depends(require_user), db: Session = Depends(get_db)) -> AnnouncementReadResponse:
+    announcement = db.execute(select(AdminSettings)).scalar_one_or_none()
+    if announcement is None or not announcement.announcement_updated_at:
+        raise HTTPException(status_code=404, detail="Announcement not configured")
+
+    user_settings = db.execute(select(UserSettings).where(UserSettings.user_id == user.id)).scalar_one_or_none()
+    if user_settings is None:
+        raise HTTPException(status_code=404, detail="User settings not found")
+
+    read_at = now()
+    user_settings.announcement_read_at = read_at
+    user_settings.announcement_read_announcement_updated_at = announcement.announcement_updated_at
+    user_settings.updated_at = now()
+    db.commit()
+
+    return AnnouncementReadResponse(
+        read_at=read_at.isoformat(),
+        announcement_updated_at=announcement.announcement_updated_at.isoformat(),
     )
 
 
@@ -1726,6 +1772,12 @@ def get_admin_settings(
             appodeal_rewarded_enabled=True,
             privacy_policy_text=None,
             privacy_policy_updated_at=None,
+            announcement_enabled=False,
+            announcement_text=None,
+            announcement_button_enabled=False,
+            announcement_button_text=None,
+            announcement_button_url=None,
+            announcement_updated_at=None,
             updated_at=now(),
         )
         db.add(row)
@@ -1742,6 +1794,12 @@ def get_admin_settings(
         appodeal_rewarded_enabled=row.appodeal_rewarded_enabled,
         privacy_policy_text=row.privacy_policy_text,
         privacy_policy_updated_at=row.privacy_policy_updated_at.isoformat() if row.privacy_policy_updated_at else None,
+        announcement_enabled=row.announcement_enabled,
+        announcement_text=row.announcement_text,
+        announcement_button_enabled=row.announcement_button_enabled,
+        announcement_button_text=row.announcement_button_text,
+        announcement_button_url=row.announcement_button_url,
+        announcement_updated_at=row.announcement_updated_at.isoformat() if row.announcement_updated_at else None,
         updated_at=row.updated_at.isoformat(),
     )
 
@@ -1763,6 +1821,12 @@ def update_admin_settings(
             appodeal_rewarded_enabled=req.appodeal_rewarded_enabled if req.appodeal_rewarded_enabled is not None else True,
             privacy_policy_text=req.privacy_policy_text,
             privacy_policy_updated_at=now() if req.privacy_policy_text else None,
+            announcement_enabled=req.announcement_enabled or False,
+            announcement_text=req.announcement_text,
+            announcement_button_enabled=req.announcement_button_enabled or False,
+            announcement_button_text=req.announcement_button_text,
+            announcement_button_url=req.announcement_button_url,
+            announcement_updated_at=now() if req.announcement_text else None,
             updated_at=now(),
         )
         db.add(row)
@@ -1782,6 +1846,25 @@ def update_admin_settings(
         if req.privacy_policy_text is not None and req.privacy_policy_text != row.privacy_policy_text:
             row.privacy_policy_text = req.privacy_policy_text
             row.privacy_policy_updated_at = now()
+
+        if req.announcement_enabled is not None:
+            row.announcement_enabled = req.announcement_enabled
+        if req.announcement_button_enabled is not None:
+            row.announcement_button_enabled = req.announcement_button_enabled
+
+        if req.announcement_text is not None and req.announcement_text != row.announcement_text:
+            row.announcement_text = req.announcement_text
+            row.announcement_updated_at = now()
+
+        if req.announcement_button_text is not None:
+            row.announcement_button_text = req.announcement_button_text
+        if req.announcement_button_url is not None:
+            row.announcement_button_url = req.announcement_button_url
+
+        if row.announcement_button_enabled and row.announcement_button_text and row.announcement_button_url:
+            pass
+        elif row.announcement_button_enabled:
+            row.announcement_button_enabled = False
         row.updated_at = now()
     
     db.commit()
@@ -1796,6 +1879,12 @@ def update_admin_settings(
         appodeal_rewarded_enabled=row.appodeal_rewarded_enabled,
         privacy_policy_text=row.privacy_policy_text,
         privacy_policy_updated_at=row.privacy_policy_updated_at.isoformat() if row.privacy_policy_updated_at else None,
+        announcement_enabled=row.announcement_enabled,
+        announcement_text=row.announcement_text,
+        announcement_button_enabled=row.announcement_button_enabled,
+        announcement_button_text=row.announcement_button_text,
+        announcement_button_url=row.announcement_button_url,
+        announcement_updated_at=row.announcement_updated_at.isoformat() if row.announcement_updated_at else None,
         updated_at=row.updated_at.isoformat(),
     )
 

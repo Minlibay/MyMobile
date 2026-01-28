@@ -13,6 +13,8 @@ data class UserSettingsResponseDto(
     val reminders_enabled: Boolean,
     val privacy_policy_accepted_at: String? = null,
     val privacy_policy_accepted_policy_updated_at: String? = null,
+    val announcement_read_at: String? = null,
+    val announcement_read_announcement_updated_at: String? = null,
     val updated_at: String,
 )
 

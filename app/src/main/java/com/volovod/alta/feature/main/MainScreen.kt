@@ -44,13 +44,16 @@ import com.volovod.alta.data.repository.SyncRepository
 import com.volovod.alta.network.ApiClient
 import com.volovod.alta.feature.main.profile.AchievementsScreen
 import com.volovod.alta.feature.main.privacy.PrivacyPolicyDialog
+import com.volovod.alta.feature.main.announcement.AnnouncementDialog
 import com.volovod.alta.steps.StepsPermissionAndTracking
 import androidx.compose.material3.SnackbarHostState
 import com.volovod.alta.ui.components.ModernSnackbarHost
 import com.volovod.alta.ui.components.showSuccess
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import com.volovod.alta.network.dto.PrivacyPolicyResponseDto
+import com.volovod.alta.network.dto.AnnouncementResponseDto
 import kotlinx.coroutines.launch
 
 private data class MainTab(
@@ -85,13 +88,20 @@ fun MainScreen(
     var showPrivacyPolicy by remember { mutableStateOf(false) }
     var requirePrivacyAccept by remember { mutableStateOf(false) }
     val privacyPolicyState = remember { mutableStateOf<PrivacyPolicyResponseDto?>(null) }
+    var showAnnouncement by remember { mutableStateOf(false) }
+    var requireAnnouncementRead by remember { mutableStateOf(false) }
+    val announcementState = remember { mutableStateOf<AnnouncementResponseDto?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     val privacyApi = remember(sessionStore) { ApiClient.createPrivacyPolicyApi(sessionStore) }
+    val announcementApi = remember(sessionStore) { ApiClient.createAnnouncementApi(sessionStore) }
 
     LaunchedEffect(Unit) {
         runCatching { privacyApi.getPrivacyPolicy() }
             .onSuccess { policy -> privacyPolicyState.value = policy }
+
+        runCatching { announcementApi.getAnnouncement() }
+            .onSuccess { announcement -> announcementState.value = announcement }
 
         val userSettings = authRepository.getUserSettings().getOrNull()
         val policyUpdatedAt = privacyPolicyState.value?.updated_at
@@ -102,6 +112,16 @@ fun MainScreen(
         if (needsAccept) {
             requirePrivacyAccept = true
             showPrivacyPolicy = true
+        }
+
+        val announcementUpdatedAt = announcementState.value?.updated_at
+        val announcementReadAt = userSettings?.announcement_read_at
+        val announcementReadUpdatedAt = userSettings?.announcement_read_announcement_updated_at
+
+        val needsAnnouncementRead = announcementUpdatedAt != null && (announcementReadAt == null || announcementReadUpdatedAt != announcementUpdatedAt)
+        if (needsAnnouncementRead) {
+            requireAnnouncementRead = true
+            showAnnouncement = true
         }
     }
 
@@ -119,6 +139,24 @@ fun MainScreen(
                     kotlin.runCatching { privacyApi.acceptPrivacyPolicy() }
                     requirePrivacyAccept = false
                     showPrivacyPolicy = false
+                }
+            },
+        )
+    }
+
+    if (showAnnouncement && announcementState.value != null) {
+        AnnouncementDialog(
+            announcement = announcementState.value!!,
+            onRead = {
+                scope.launch {
+                    kotlin.runCatching { announcementApi.readAnnouncement() }
+                    requireAnnouncementRead = false
+                    showAnnouncement = false
+                }
+            },
+            onDismiss = {
+                if (!requireAnnouncementRead) {
+                    showAnnouncement = false
                 }
             },
         )
@@ -194,6 +232,15 @@ fun MainScreen(
                                 onClick = {
                                     requirePrivacyAccept = false
                                     showPrivacyPolicy = true
+                                    showMenu = false
+                                },
+                                leadingIcon = { Icon(Icons.Default.PrivacyTip, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Новости") },
+                                onClick = {
+                                    requireAnnouncementRead = false
+                                    showAnnouncement = true
                                     showMenu = false
                                 },
                                 leadingIcon = { Icon(Icons.Default.PrivacyTip, contentDescription = null) }

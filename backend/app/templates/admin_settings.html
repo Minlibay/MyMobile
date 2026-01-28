@@ -72,6 +72,40 @@
                                 <textarea class="form-control" id="privacy_policy_text" rows="10" placeholder="Текст политики..."></textarea>
                                 <div class="form-text">Этот текст будет показан пользователю в приложении. При изменении пользователям нужно будет принять политику снова.</div>
                             </div>
+
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="announcement_enabled">
+                                    <label class="form-check-label" for="announcement_enabled">
+                                        Показать новость/сообщение в приложении
+                                    </label>
+                                </div>
+                                <div class="form-text">Если включено — пользователь увидит сообщение при входе, пока не нажмёт «Прочитано».</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="announcement_text" class="form-label">Текст новости/сообщения</label>
+                                <textarea class="form-control" id="announcement_text" rows="6" placeholder="Текст новости..."></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="announcement_button_enabled">
+                                    <label class="form-check-label" for="announcement_button_enabled">
+                                        Добавить кнопку
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="announcement_button_text" class="form-label">Текст кнопки</label>
+                                <input type="text" class="form-control" id="announcement_button_text" placeholder="Например: Подробнее">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="announcement_button_url" class="form-label">Ссылка кнопки (URL)</label>
+                                <input type="text" class="form-control" id="announcement_button_url" placeholder="https://example.com">
+                            </div>
                             
                             <div class="d-flex justify-content-between">
                                 <button type="submit" class="btn btn-primary">Сохранить настройки</button>
@@ -104,6 +138,11 @@
                 document.getElementById('openrouter_api_key').value = data.openrouter_api_key || '';
                 document.getElementById('openrouter_model').value = data.openrouter_model || '';
                 document.getElementById('privacy_policy_text').value = data.privacy_policy_text || '';
+                document.getElementById('announcement_enabled').checked = !!data.announcement_enabled;
+                document.getElementById('announcement_text').value = data.announcement_text || '';
+                document.getElementById('announcement_button_enabled').checked = !!data.announcement_button_enabled;
+                document.getElementById('announcement_button_text').value = data.announcement_button_text || '';
+                document.getElementById('announcement_button_url').value = data.announcement_button_url || '';
             } catch (error) {
                 console.error('Ошибка загрузки настроек:', error);
                 showResult('Ошибка загрузки настроек', 'danger');
@@ -117,6 +156,11 @@
             const apiKey = document.getElementById('openrouter_api_key').value.trim();
             const model = document.getElementById('openrouter_model').value.trim();
             const privacyPolicyText = document.getElementById('privacy_policy_text').value;
+            const announcementEnabled = document.getElementById('announcement_enabled').checked;
+            const announcementText = document.getElementById('announcement_text').value;
+            const announcementButtonEnabled = document.getElementById('announcement_button_enabled').checked;
+            const announcementButtonText = document.getElementById('announcement_button_text').value.trim();
+            const announcementButtonUrl = document.getElementById('announcement_button_url').value.trim();
             
             try {
                 const response = await fetch('/admin/api/settings', {
@@ -128,6 +172,11 @@
                         openrouter_api_key: apiKey || null,
                         openrouter_model: model || null,
                         privacy_policy_text: privacyPolicyText || null,
+                        announcement_enabled: announcementEnabled,
+                        announcement_text: announcementText || null,
+                        announcement_button_enabled: announcementButtonEnabled,
+                        announcement_button_text: announcementButtonText || null,
+                        announcement_button_url: announcementButtonUrl || null,
                     }),
                 });
                 

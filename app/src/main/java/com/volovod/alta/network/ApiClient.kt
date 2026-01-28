@@ -18,6 +18,7 @@ import com.volovod.alta.network.api.WaterApi
 import com.volovod.alta.network.api.ProfileApi
 import com.volovod.alta.network.api.UserSettingsApi
 import com.volovod.alta.network.api.PrivacyPolicyApi
+import com.volovod.alta.network.api.AnnouncementApi
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -44,6 +45,16 @@ object ApiClient {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(PrivacyPolicyApi::class.java)
+    }
+
+    fun createAnnouncementApi(sessionStore: SessionStore): AnnouncementApi {
+        val okHttpClient = createOkHttpClient(sessionStore)
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(AnnouncementApi::class.java)
     }
 
     fun createAuthApi(sessionStore: SessionStore): AuthApi {

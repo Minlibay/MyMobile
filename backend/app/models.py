@@ -93,6 +93,8 @@ class UserSettings(Base):
     target_weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
     privacy_policy_accepted_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     privacy_policy_accepted_policy_updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    announcement_read_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    announcement_read_announcement_updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reminders_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
@@ -220,6 +222,12 @@ class AdminSettings(Base):
     appodeal_rewarded_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     privacy_policy_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     privacy_policy_updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    announcement_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    announcement_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    announcement_button_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    announcement_button_text: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    announcement_button_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    announcement_updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), index=True)
 
 

@@ -78,6 +78,8 @@ class UserSettingsResponse(UserSettingsRequest):
     user_id: int
     privacy_policy_accepted_at: str | None = None
     privacy_policy_accepted_policy_updated_at: str | None = None
+    announcement_read_at: str | None = None
+    announcement_read_announcement_updated_at: str | None = None
     updated_at: str
 
 
@@ -259,6 +261,11 @@ class AdminSettingsRequest(BaseModel):
     appodeal_interstitial_enabled: bool | None = None
     appodeal_rewarded_enabled: bool | None = None
     privacy_policy_text: str | None = None
+    announcement_enabled: bool | None = None
+    announcement_text: str | None = None
+    announcement_button_enabled: bool | None = None
+    announcement_button_text: str | None = None
+    announcement_button_url: str | None = None
 
 
 class AdminSettingsResponse(BaseModel):
@@ -271,6 +278,12 @@ class AdminSettingsResponse(BaseModel):
     appodeal_rewarded_enabled: bool = True
     privacy_policy_text: str | None = None
     privacy_policy_updated_at: str | None = None
+    announcement_enabled: bool = False
+    announcement_text: str | None = None
+    announcement_button_enabled: bool = False
+    announcement_button_text: str | None = None
+    announcement_button_url: str | None = None
+    announcement_updated_at: str | None = None
     updated_at: str
 
 
@@ -282,6 +295,19 @@ class PrivacyPolicyResponse(BaseModel):
 class PrivacyPolicyAcceptResponse(BaseModel):
     accepted_at: str
     policy_updated_at: str
+
+
+class AnnouncementResponse(BaseModel):
+    text: str
+    updated_at: str
+    button_enabled: bool = False
+    button_text: str | None = None
+    button_url: str | None = None
+
+
+class AnnouncementReadResponse(BaseModel):
+    read_at: str
+    announcement_updated_at: str
 
 
 
