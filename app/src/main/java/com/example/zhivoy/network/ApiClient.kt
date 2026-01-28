@@ -6,6 +6,7 @@ import com.example.zhivoy.network.api.AuthApi
 import com.example.zhivoy.network.api.OpenRouterApi
 import com.example.zhivoy.network.api.FamilyApi
 import com.example.zhivoy.network.api.FoodApi
+import com.example.zhivoy.network.api.BookApi
 import com.example.zhivoy.network.api.TrainingApi
 import com.example.zhivoy.network.api.SmokeApi
 import com.example.zhivoy.network.api.StepsApi
@@ -157,6 +158,16 @@ object ApiClient {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(TrainingApi::class.java)
+    }
+
+    fun createBookApi(sessionStore: SessionStore): BookApi {
+        val okHttpClient = createOkHttpClient(sessionStore)
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(BookApi::class.java)
     }
 
     fun createOpenRouterApi(): OpenRouterApi {

@@ -175,6 +175,25 @@ class TrainingEntryResponse(BaseModel):
     created_at: str
 
 
+class BookCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=256)
+    author: str | None = Field(default=None, max_length=256)
+    total_pages: int = Field(ge=0)
+
+
+class BookProgressRequest(BaseModel):
+    pages_read: int = Field(ge=0)
+
+
+class BookEntryResponse(BaseModel):
+    id: int
+    title: str
+    author: str | None = None
+    total_pages: int
+    pages_read: int
+    created_at: str
+
+
 
 
 

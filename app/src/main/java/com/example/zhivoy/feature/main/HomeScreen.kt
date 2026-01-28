@@ -60,6 +60,8 @@ import com.example.zhivoy.BuildConfig
 import com.example.zhivoy.data.entities.AchievementEntity
 import com.example.zhivoy.data.repository.AiChatRepository
 import com.example.zhivoy.data.repository.FoodRemoteRepository
+import com.example.zhivoy.data.repository.BookRemoteRepository
+import com.example.zhivoy.data.repository.SmokeRemoteRepository
 import com.example.zhivoy.data.repository.WaterRepository
 import com.example.zhivoy.data.repository.WeightRemoteRepository
 import com.example.zhivoy.feature.main.AiChatViewModel
@@ -115,6 +117,9 @@ fun HomeScreen() {
     }
     val weightRemoteRepository = remember(sessionStore) {
         WeightRemoteRepository(sessionStore)
+    }
+    val bookRemoteRepository = remember(sessionStore) {
+        BookRemoteRepository(sessionStore)
     }
     val session by sessionStore.session.collectAsState(initial = null)
     val userId = session?.userId
@@ -440,7 +445,10 @@ fun HomeScreen() {
             onAdd = { title, author, pages ->
                 if (userId == null) return@AddBookDialog
                 scope.launch {
+                    val remote = bookRemoteRepository.createBook(title, author, pages)
+
                     withContext(Dispatchers.IO) {
+                        // Cache locally (always) so UI updates immediately
                         db.bookDao().insert(
                             com.example.zhivoy.data.entities.BookEntryEntity(
                                 userId = userId,

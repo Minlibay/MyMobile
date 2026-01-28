@@ -11,7 +11,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
-from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry
+from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry, BookEntry
 from app.schemas import (
     AdUnitUpsert,
     AdsConfigResponse,
@@ -38,6 +38,9 @@ from app.schemas import (
     FoodEntryResponse,
     TrainingCreateRequest,
     TrainingEntryResponse,
+    BookCreateRequest,
+    BookEntryResponse,
+    BookProgressRequest,
     TokenPair,
     UserMeResponse,
     UserSettingsRequest,
@@ -933,6 +936,97 @@ def delete_water_me(
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
     row = db.get(WaterEntry, entry_id)
+    if row is None or row.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(row)
+    db.commit()
+    return {"status": "deleted"}
+
+
+@app.get("/books/me", response_model=List[BookEntryResponse])
+def get_books_me(
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> List[BookEntryResponse]:
+    rows = (
+        db.execute(
+            select(BookEntry)
+            .where(BookEntry.user_id == user.id)
+            .order_by(BookEntry.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        BookEntryResponse(
+            id=r.id,
+            title=r.title,
+            author=r.author,
+            total_pages=r.total_pages,
+            pages_read=r.pages_read,
+            created_at=r.created_at.isoformat(),
+        )
+        for r in rows
+    ]
+
+
+@app.post("/books/me", response_model=BookEntryResponse)
+def create_book_me(
+    req: BookCreateRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> BookEntryResponse:
+    row = BookEntry(
+        user_id=user.id,
+        title=req.title,
+        author=req.author,
+        total_pages=req.total_pages,
+        pages_read=0,
+        created_at=now(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return BookEntryResponse(
+        id=row.id,
+        title=row.title,
+        author=row.author,
+        total_pages=row.total_pages,
+        pages_read=row.pages_read,
+        created_at=row.created_at.isoformat(),
+    )
+
+
+@app.put("/books/me/{entry_id}", response_model=BookEntryResponse)
+def update_book_progress_me(
+    entry_id: int,
+    req: BookProgressRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> BookEntryResponse:
+    row = db.get(BookEntry, entry_id)
+    if row is None or row.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    row.pages_read = req.pages_read
+    db.commit()
+    db.refresh(row)
+    return BookEntryResponse(
+        id=row.id,
+        title=row.title,
+        author=row.author,
+        total_pages=row.total_pages,
+        pages_read=row.pages_read,
+        created_at=row.created_at.isoformat(),
+    )
+
+
+@app.delete("/books/me/{entry_id}")
+def delete_book_me(
+    entry_id: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    row = db.get(BookEntry, entry_id)
     if row is None or row.user_id != user.id:
         raise HTTPException(status_code=404, detail="Not found")
     db.delete(row)

@@ -144,6 +144,20 @@ class StepEntry(Base):
     user: Mapped["User"] = relationship()
 
 
+class BookEntry(Base):
+    __tablename__ = "book_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(String(256))
+    author: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    total_pages: Mapped[int] = mapped_column(Integer, default=0)
+    pages_read: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), index=True)
+
+    user: Mapped["User"] = relationship()
+
+
 class TrainingEntry(Base):
     __tablename__ = "training_entries"
 

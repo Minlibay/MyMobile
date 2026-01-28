@@ -19,6 +19,7 @@ import com.example.zhivoy.LocalAppDatabase
 import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.data.entities.BookEntryEntity
 import com.example.zhivoy.data.entities.XpEventEntity
+import com.example.zhivoy.data.repository.BookRemoteRepository
 import com.example.zhivoy.feature.main.brain.AddBookDialog
 import com.example.zhivoy.feature.main.brain.UpdateProgressDialog
 import com.example.zhivoy.ui.components.ModernButton
@@ -35,6 +36,8 @@ fun BrainScreen() {
     val session by sessionStore.session.collectAsState(initial = null)
     val userId = session?.userId
     val scope = rememberCoroutineScope()
+
+    val bookRemoteRepository = remember(sessionStore) { BookRemoteRepository(sessionStore) }
 
     val books by (if (userId != null) db.bookDao().observeAll(userId) else kotlinx.coroutines.flow.flowOf(emptyList()))
         .collectAsState(initial = emptyList())
@@ -124,6 +127,8 @@ fun BrainScreen() {
                                 }
                                 IconButton(onClick = {
                                     scope.launch {
+                                        val remote = bookRemoteRepository.deleteBook(book.id)
+
                                         withContext(Dispatchers.IO) {
                                             db.bookDao().deleteById(book.id)
                                         }
@@ -172,7 +177,10 @@ fun BrainScreen() {
             onAdd = { title, author, totalPages ->
                 if (userId != null) {
                     scope.launch {
+                        val remote = bookRemoteRepository.createBook(title, author, totalPages)
+
                         withContext(Dispatchers.IO) {
+                            // Cache locally (always) so UI updates immediately
                             db.bookDao().insert(
                                 BookEntryEntity(
                                     userId = userId,
@@ -195,8 +203,8 @@ fun BrainScreen() {
                                 )
                             )
                         }
+                        showAddDialog = false
                     }
-                    showAddDialog = false
                 }
             }
         )
@@ -210,8 +218,11 @@ fun BrainScreen() {
             onUpdate = { pagesRead ->
                 if (userId != null) {
                     scope.launch {
+                        val remote = bookRemoteRepository.updateBookProgress(updatingBook!!.id, pagesRead)
+
                         val diff = pagesRead - updatingBook!!.pagesRead
                         withContext(Dispatchers.IO) {
+                            // Cache locally (always) so UI updates immediately
                             db.bookDao().updateProgress(updatingBook!!.id, pagesRead)
                             if (diff > 0) {
                                 // Award XP based on pages read (1 XP per 5 pages, example)
