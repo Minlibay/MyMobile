@@ -11,7 +11,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
-from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus
+from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry
 from app.schemas import (
     AdUnitUpsert,
     AdsConfigResponse,
@@ -34,6 +34,8 @@ from app.schemas import (
     WeightUpsertRequest,
     SmokeStatusRequest,
     SmokeStatusResponse,
+    FoodCreateRequest,
+    FoodEntryResponse,
     TokenPair,
     UserMeResponse,
     UserSettingsRequest,
@@ -1046,6 +1048,77 @@ def get_smoke_me(
         packs_per_day=row.packs_per_day,
         updated_at=row.updated_at.isoformat(),
     )
+
+
+@app.get("/food/me", response_model=List[FoodEntryResponse])
+def get_food_me(
+    start: int,
+    end: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> List[FoodEntryResponse]:
+    rows = (
+        db.execute(
+            select(FoodEntry)
+            .where(
+                FoodEntry.user_id == user.id,
+                FoodEntry.date_epoch_day >= start,
+                FoodEntry.date_epoch_day <= end,
+            )
+            .order_by(FoodEntry.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        FoodEntryResponse(
+            id=r.id,
+            date_epoch_day=r.date_epoch_day,
+            title=r.title,
+            calories=r.calories,
+            created_at=r.created_at.isoformat(),
+        )
+        for r in rows
+    ]
+
+
+@app.post("/food/me", response_model=FoodEntryResponse)
+def create_food_me(
+    req: FoodCreateRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> FoodEntryResponse:
+    row = FoodEntry(
+        user_id=user.id,
+        date_epoch_day=req.date_epoch_day,
+        title=req.title,
+        calories=req.calories,
+        created_at=now(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return FoodEntryResponse(
+        id=row.id,
+        date_epoch_day=row.date_epoch_day,
+        title=row.title,
+        calories=row.calories,
+        created_at=row.created_at.isoformat(),
+    )
+
+
+@app.delete("/food/me/{entry_id}")
+def delete_food_me(
+    entry_id: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    row = db.get(FoodEntry, entry_id)
+    if row is None or row.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(row)
+    db.commit()
+    return {"status": "deleted"}
 
 
 @app.put("/smoke/me", response_model=SmokeStatusResponse)

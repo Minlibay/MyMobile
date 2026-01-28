@@ -144,6 +144,19 @@ class StepEntry(Base):
     user: Mapped["User"] = relationship()
 
 
+class FoodEntry(Base):
+    __tablename__ = "food_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    date_epoch_day: Mapped[int] = mapped_column(Integer, index=True)
+    title: Mapped[str] = mapped_column(String(256))
+    calories: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+
+    user: Mapped["User"] = relationship()
+
+
 class WeightEntry(Base):
     __tablename__ = "weight_entries"
     __table_args__ = (
@@ -153,7 +166,7 @@ class WeightEntry(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     date_epoch_day: Mapped[int] = mapped_column(Integer, index=True)
-    weight_kg: Mapped[float] = mapped_column(BigInteger)
+    weight_kg: Mapped[float] = mapped_column(Float)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
 

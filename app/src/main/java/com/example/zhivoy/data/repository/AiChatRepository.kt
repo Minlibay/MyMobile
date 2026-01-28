@@ -23,6 +23,7 @@ data class FoodAiResponse(
 class AiChatRepository(
     private val openRouterApi: OpenRouterApi,
     private val foodDao: FoodDao,
+    private val foodRemoteRepository: FoodRemoteRepository,
     private val apiKey: String
 ) {
     private val json = Json { ignoreUnknownKeys = true }
@@ -60,16 +61,37 @@ class AiChatRepository(
             Log.d("AiChatRepository", "AI content: $content")
             val foodData = json.decodeFromString<FoodAiResponse>(content)
             Log.d("AiChatRepository", "Parsed food: title=${foodData.title}, calories=${foodData.calories}")
-            
-            // Сохраняем в БД
-            val entry = FoodEntryEntity(
-                userId = userId,
-                dateEpochDay = DateTime.epochDayNow(),
+
+            val epochDay = DateTime.epochDayNow()
+            val createdAtMs = System.currentTimeMillis()
+
+            val remoteResult = foodRemoteRepository.createFood(
+                dateEpochDay = epochDay,
                 title = foodData.title,
                 calories = foodData.calories,
-                createdAtEpochMs = System.currentTimeMillis()
             )
-            foodDao.insert(entry)
+
+            if (remoteResult.isSuccess) {
+                // Optionally cache locally for immediate UI
+                val entry = FoodEntryEntity(
+                    userId = userId,
+                    dateEpochDay = epochDay,
+                    title = foodData.title,
+                    calories = foodData.calories,
+                    createdAtEpochMs = createdAtMs
+                )
+                foodDao.insert(entry)
+            } else {
+                // Offline fallback
+                val entry = FoodEntryEntity(
+                    userId = userId,
+                    dateEpochDay = epochDay,
+                    title = foodData.title,
+                    calories = foodData.calories,
+                    createdAtEpochMs = createdAtMs
+                )
+                foodDao.insert(entry)
+            }
             
             Result.success(foodData)
         } catch (e: Exception) {

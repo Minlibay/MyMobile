@@ -59,6 +59,7 @@ import com.example.zhivoy.LocalSessionStore
 import com.example.zhivoy.BuildConfig
 import com.example.zhivoy.data.entities.AchievementEntity
 import com.example.zhivoy.data.repository.AiChatRepository
+import com.example.zhivoy.data.repository.FoodRemoteRepository
 import com.example.zhivoy.data.repository.WaterRepository
 import com.example.zhivoy.data.repository.WeightRemoteRepository
 import com.example.zhivoy.feature.main.AiChatViewModel
@@ -108,6 +109,9 @@ fun HomeScreen() {
     }
     val waterRepository = remember(sessionStore) {
         WaterRepository(sessionStore)
+    }
+    val foodRemoteRepository = remember(sessionStore) {
+        FoodRemoteRepository(sessionStore)
     }
     val weightRemoteRepository = remember(sessionStore) {
         WeightRemoteRepository(sessionStore)
@@ -336,7 +340,7 @@ fun HomeScreen() {
         val key = BuildConfig.OPENROUTER_API_KEY
         if (userId != null && key.isNotBlank()) {
             AiChatViewModel(
-                AiChatRepository(openRouterApi, db.foodDao(), key),
+                AiChatRepository(openRouterApi, db.foodDao(), foodRemoteRepository, key),
                 userId
             )
         } else null
@@ -359,16 +363,23 @@ fun HomeScreen() {
             onAdd = { title, calories ->
                 if (userId == null) return@AddFoodDialog
                 scope.launch {
+                    val remote = foodRemoteRepository.createFood(today, title, calories)
+                    if (remote.isFailure) {
+                        withContext(Dispatchers.IO) {
+                            db.foodDao().insert(
+                                FoodEntryEntity(
+                                    userId = userId,
+                                    dateEpochDay = today,
+                                    title = title,
+                                    calories = calories,
+                                    createdAtEpochMs = System.currentTimeMillis(),
+                                ),
+                            )
+                        }
+                    }
+
+                    // Local XP (for now). Will be moved to backend later.
                     withContext(Dispatchers.IO) {
-                        db.foodDao().insert(
-                            FoodEntryEntity(
-                                userId = userId,
-                                dateEpochDay = today,
-                                title = title,
-                                calories = calories,
-                                createdAtEpochMs = System.currentTimeMillis(),
-                            ),
-                        )
                         db.xpDao().insert(
                             com.example.zhivoy.data.entities.XpEventEntity(
                                 userId = userId,

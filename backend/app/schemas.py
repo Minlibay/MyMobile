@@ -143,6 +143,20 @@ class SmokeStatusResponse(SmokeStatusRequest):
     updated_at: str
 
 
+class FoodCreateRequest(BaseModel):
+    date_epoch_day: int
+    title: str = Field(min_length=1, max_length=256)
+    calories: int = Field(gt=0)
+
+
+class FoodEntryResponse(BaseModel):
+    id: int
+    date_epoch_day: int
+    title: str
+    calories: int
+    created_at: str
+
+
 
 
 
