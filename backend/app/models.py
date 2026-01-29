@@ -134,6 +134,23 @@ class FamilyMember(Base):
 User.family_members = relationship("FamilyMember", back_populates="user", cascade="all, delete-orphan")
 
 
+class FamilyInvite(Base):
+    __tablename__ = "family_invites"
+    __table_args__ = (
+        UniqueConstraint("family_id", "invited_user_id", name="uq_family_invites_family_id_invited_user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    family_id: Mapped[int] = mapped_column(ForeignKey("families.id"), index=True)
+    invited_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    invited_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+
+    family: Mapped[Family] = relationship()
+    invited_user: Mapped[User] = relationship("User", foreign_keys=[invited_user_id])
+    invited_by_user: Mapped[User] = relationship("User", foreign_keys=[invited_by_user_id])
+
+
 class StepEntry(Base):
     __tablename__ = "step_entries"
     __table_args__ = (
@@ -229,6 +246,20 @@ class AdminSettings(Base):
     announcement_button_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     announcement_updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), index=True)
+
+
+class Announcement(Base):
+    __tablename__ = "announcements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(256))
+    text: Mapped[str] = mapped_column(Text)
+    button_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    button_text: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    button_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
 
 
 class TrainingEntry(Base):

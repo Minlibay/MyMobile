@@ -108,6 +108,15 @@ class JoinFamilyRequest(BaseModel):
     family_name: str = Field(min_length=3, max_length=64)
 
 
+class FamilyInviteResponse(BaseModel):
+    id: int
+    family_id: int
+    family_name: str
+    invited_by_user_id: int
+    invited_by_login: str
+    created_at: str
+
+
 class StepUpsertRequest(BaseModel):
     date_epoch_day: int
     steps: int = Field(ge=0)
@@ -308,6 +317,28 @@ class AnnouncementResponse(BaseModel):
 class AnnouncementReadResponse(BaseModel):
     read_at: str
     announcement_updated_at: str
+
+
+# Admin announcements (news) management
+class AnnouncementRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=256)
+    text: str = Field(min_length=1)
+    button_enabled: bool = False
+    button_text: str | None = Field(default=None, max_length=64)
+    button_url: str | None = Field(default=None, max_length=512)
+    is_active: bool = True
+
+
+class AnnouncementResponse(BaseModel):
+    id: int
+    title: str
+    text: str
+    button_enabled: bool
+    button_text: str | None
+    button_url: str | None
+    is_active: bool
+    created_at: str
+    updated_at: str
 
 
 

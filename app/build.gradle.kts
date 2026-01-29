@@ -36,13 +36,23 @@ android {
         )
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../alta-release-key.keystore")
+            storePassword = "122344Aa"
+            keyAlias = "alta_key"
+            keyPassword = "122344Aa"
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

@@ -47,6 +47,7 @@ class StepsForegroundService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var tracker: StepsTracker? = null
+    private var trackerUserId: Long? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -79,7 +80,6 @@ class StepsForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun startTracking() {
-        if (tracker != null) return
         val appContext = applicationContext
         
         // Проверяем разрешения перед запуском
@@ -107,6 +107,16 @@ class StepsForegroundService : Service() {
                 return@launch
             }
 
+            // If the service is already tracking another user (logout/login), restart tracker.
+            if (tracker != null && trackerUserId != userId) {
+                stopTracking()
+            }
+
+            // Already tracking same user
+            if (tracker != null && trackerUserId == userId) {
+                return@launch
+            }
+
             val db = withContext(Dispatchers.IO) {
                 androidx.room.Room.databaseBuilder(appContext, AppDatabase::class.java, "com.volovod.alta.db")
                     .fallbackToDestructiveMigration()
@@ -121,6 +131,7 @@ class StepsForegroundService : Service() {
                 stepsRepository = stepsRepository,
             )
             tracker = localTracker
+            trackerUserId = userId
             localTracker.start()
 
             // Реактивно обновляем уведомление при изменении шагов в БД
@@ -136,6 +147,7 @@ class StepsForegroundService : Service() {
     private fun stopTracking() {
         tracker?.stop()
         tracker = null
+        trackerUserId = null
     }
 
     private fun ensureChannel() {

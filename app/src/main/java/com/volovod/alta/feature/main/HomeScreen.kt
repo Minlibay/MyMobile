@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.SnackbarHostState
 import com.volovod.alta.ui.components.ModernSnackbarHost
 import com.volovod.alta.ui.components.showSuccess
+import com.volovod.alta.ui.components.SkeletonStatCard
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoStories
@@ -34,6 +35,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
@@ -172,6 +174,7 @@ fun HomeScreen() {
     val localWaterToday by (if (userId != null) db.waterDao().observeTotalForDay(userId, today) else kotlinx.coroutines.flow.flowOf(0))
         .collectAsState(initial = 0)
     var remoteWaterToday by remember(userId) { mutableStateOf<Int?>(null) }
+    var isSavingWater by remember { mutableStateOf(false) }
     LaunchedEffect(userId) {
         if (userId == null) return@LaunchedEffect
         waterRepository.getWaterRange(start = today, end = today).fold(
@@ -189,8 +192,10 @@ fun HomeScreen() {
     // Settings + profile -> goals
     val settings = remember(userId) { mutableStateOf<com.volovod.alta.data.entities.UserSettingsEntity?>(null) }
     val profileState = remember(userId) { mutableStateOf<com.volovod.alta.data.entities.ProfileEntity?>(null) }
+    val isLoadingProfile = remember(userId) { mutableStateOf(true) }
     LaunchedEffect(userId) {
         if (userId == null) return@LaunchedEffect
+        isLoadingProfile.value = true
         authRepository.getProfile().fold(
             onSuccess = { profileResponse ->
                 profileState.value = com.volovod.alta.data.entities.ProfileEntity(
@@ -221,6 +226,7 @@ fun HomeScreen() {
             },
             onFailure = { /* Handle error or show a message */ }
         )
+        isLoadingProfile.value = false
     }
 
     val remindersEnabled = settings.value?.remindersEnabled ?: true
@@ -670,20 +676,25 @@ fun HomeScreen() {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                StatCard(
-                    title = "Шаги",
-                    value = stepsToday.toString(),
-                    subtitle = "Сегодня",
-                    modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.AutoMirrored.Filled.DirectionsWalk, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                )
-                StatCard(
-                    title = "Ккал",
-                    value = caloriesToday.toString(),
-                    subtitle = "Еда",
-                    modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = MaterialTheme.colorScheme.secondary) },
-                )
+                if (isLoadingProfile.value) {
+                    SkeletonStatCard(modifier = Modifier.weight(1f))
+                    SkeletonStatCard(modifier = Modifier.weight(1f))
+                } else {
+                    StatCard(
+                        title = "Шаги",
+                        value = stepsToday.toString(),
+                        subtitle = "Сегодня",
+                        modifier = Modifier.weight(1f),
+                        icon = { Icon(Icons.AutoMirrored.Filled.DirectionsWalk, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    )
+                    StatCard(
+                        title = "Ккал",
+                        value = caloriesToday.toString(),
+                        subtitle = "Еда",
+                        modifier = Modifier.weight(1f),
+                        icon = { Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = MaterialTheme.colorScheme.secondary) },
+                    )
+                }
             }
 
             ModernCard {
@@ -877,99 +888,118 @@ fun HomeScreen() {
             }
 
             ModernCard {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Box {
                     Column {
-                        Text(
-                            text = "Вода",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Вода",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Text(
+                                    text = "Выпито: $waterToday / $waterGoal мл",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                Icons.Default.LocalDrink,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        LinearProgressIndicator(
+                            progress = { (waterToday.toFloat() / waterGoal).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(10.dp).clip(CircleShape),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.primaryContainer
                         )
-                        Text(
-                            text = "Выпито: $waterToday / $waterGoal мл",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Icon(
-                        Icons.Default.LocalDrink,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                LinearProgressIndicator(
-                    progress = { (waterToday.toFloat() / waterGoal).coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth().height(10.dp).clip(CircleShape),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primaryContainer
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(250, 500).forEach { ml ->
-                        ModernOutlinedButton(
-                            text = "+$ml мл",
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                if (userId == null) return@ModernOutlinedButton
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                scope.launch {
-                                    // Server-first: send to backend
-                                    val result = waterRepository.createWater(today, ml)
-                                    if (result.isSuccess) {
-                                        // Process any pending sync items
-                                        syncRepository.processPending(userId)
-                                    } else {
-                                        // Enqueue for retry
-                                        syncRepository.enqueue(
-                                            userId = userId,
-                                            entityType = "water",
-                                            action = "create",
-                                            payload = mapOf(
-                                                "date_epoch_day" to today,
-                                                "amount_ml" to ml,
-                                            ),
-                                        )
-                                        // Offline fallback: keep local insert so user progress is not lost
-                                        withContext(Dispatchers.IO) {
-                                            db.waterDao().insert(
-                                                com.volovod.alta.data.entities.WaterEntryEntity(
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(250, 500).forEach { ml ->
+                                ModernOutlinedButton(
+                                    text = "+$ml мл",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        if (userId == null || isSavingWater) return@ModernOutlinedButton
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        scope.launch {
+                                            isSavingWater = true
+                                            // Мгновенно обновляем UI
+                                            remoteWaterToday = (remoteWaterToday ?: 0) + ml
+                                            // Server-first: send to backend
+                                            val result = waterRepository.createWater(today, ml)
+                                            if (result.isSuccess) {
+                                                // Process any pending sync items
+                                                syncRepository.processPending(userId)
+                                            } else {
+                                                // Enqueue for retry
+                                                syncRepository.enqueue(
                                                     userId = userId,
-                                                    dateEpochDay = today,
-                                                    amountMl = ml,
-                                                    createdAtEpochMs = System.currentTimeMillis()
+                                                    entityType = "water",
+                                                    action = "create",
+                                                    payload = mapOf(
+                                                        "date_epoch_day" to today,
+                                                        "amount_ml" to ml,
+                                                    ),
                                                 )
-                                            )
-                                        }
-                                    }
+                                                // Offline fallback: keep local insert so user progress is not lost
+                                                withContext(Dispatchers.IO) {
+                                                    db.waterDao().insert(
+                                                        com.volovod.alta.data.entities.WaterEntryEntity(
+                                                            userId = userId,
+                                                            dateEpochDay = today,
+                                                            amountMl = ml,
+                                                            createdAtEpochMs = System.currentTimeMillis()
+                                                        )
+                                                    )
+                                                }
+                                            }
 
-                                    // Server-first XP event
-                                    xpRemoteRepository.createXpEvent(
-                                        dateEpochDay = today,
-                                        type = "water",
-                                        points = 2,
-                                        note = "Выпил $ml мл воды",
-                                    )
-                                    // Cache locally (always) so UI updates immediately
-                                    withContext(Dispatchers.IO) {
-                                        db.xpDao().insert(
-                                            com.volovod.alta.data.entities.XpEventEntity(
-                                                userId = userId,
+                                            // Server-first XP event
+                                            xpRemoteRepository.createXpEvent(
                                                 dateEpochDay = today,
                                                 type = "water",
                                                 points = 2,
                                                 note = "Выпил $ml мл воды",
-                                                createdAtEpochMs = System.currentTimeMillis()
                                             )
-                                        )
-                                    }
-                                }
+                                            // Cache locally (always) so UI updates immediately
+                                            withContext(Dispatchers.IO) {
+                                                db.xpDao().insert(
+                                                    com.volovod.alta.data.entities.XpEventEntity(
+                                                        userId = userId,
+                                                        dateEpochDay = today,
+                                                        type = "water",
+                                                        points = 2,
+                                                        note = "Выпил $ml мл воды",
+                                                        createdAtEpochMs = System.currentTimeMillis(),
+                                                    ),
+                                                )
+                                            }
+                                            isSavingWater = false
+                                        }
+                                    },
+                                    enabled = !isSavingWater
+                                )
                             }
-                        )
+                        }
+                    }
+                    if (isSavingWater) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
+                        }
                     }
                 }
             }

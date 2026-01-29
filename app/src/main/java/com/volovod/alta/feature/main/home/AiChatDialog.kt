@@ -29,6 +29,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.volovod.alta.feature.main.AiChatViewModel
 import com.volovod.alta.feature.main.ChatMessage
+import com.volovod.alta.ui.components.SkeletonLine
 
 @Composable
 fun AiChatDialog(
@@ -37,8 +38,16 @@ fun AiChatDialog(
 ) {
     val messages by viewModel.messages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isConfigured by viewModel.isConfigured.collectAsState()
+    val isConfiguring by viewModel.isConfiguring.collectAsState()
     var inputText by remember { mutableStateOf("") }
     val context = LocalContext.current
+    
+    // Если ключ не настроен и не настраивается — не показываем диалог
+    if (!isConfiguring && !isConfigured) {
+        onDismiss()
+        return
+    }
     
     var showImageSourceDialog by remember { mutableStateOf(false) }
 
@@ -89,8 +98,12 @@ fun AiChatDialog(
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
-                    TextButton(onClick = onDismiss) {
-                        Text("Закрыть")
+                    if (isConfiguring) {
+                        SkeletonLine(width = 80.dp, height = 16.dp)
+                    } else {
+                        TextButton(onClick = onDismiss) {
+                            Text("Закрыть")
+                        }
                     }
                 }
 
@@ -114,6 +127,13 @@ fun AiChatDialog(
                             }
                         }
                     }
+                    if (isConfiguring) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                                SkeletonLine(width = 120.dp, height = 12.dp)
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -123,7 +143,7 @@ fun AiChatDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    IconButton(onClick = { showImageSourceDialog = true }) {
+                    IconButton(onClick = { showImageSourceDialog = true }, enabled = !isConfiguring && isConfigured) {
                         Icon(
                             Icons.Default.PhotoCamera,
                             contentDescription = "Photo",
@@ -141,7 +161,8 @@ fun AiChatDialog(
                             unfocusedContainerColor = Color.Transparent,
                             disabledContainerColor = Color.Transparent,
                         ),
-                        maxLines = 3
+                        maxLines = 3,
+                        enabled = !isConfiguring && isConfigured
                     )
 
                     IconButton(
@@ -151,7 +172,7 @@ fun AiChatDialog(
                                 inputText = ""
                             }
                         },
-                        enabled = inputText.isNotBlank() && !isLoading
+                        enabled = inputText.isNotBlank() && !isLoading && !isConfiguring && isConfigured
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.Send,

@@ -34,6 +34,8 @@ import com.volovod.alta.data.repository.XpRemoteRepository
 import com.volovod.alta.ui.components.ModernCard
 import com.volovod.alta.ui.components.ModernButton
 import com.volovod.alta.ui.components.ModernTextField
+import com.volovod.alta.ui.components.SkeletonCard
+import com.volovod.alta.ui.components.SkeletonStatCard
 import com.volovod.alta.util.DateTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -44,13 +46,19 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.animation.core.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import kotlin.math.pow
 import androidx.compose.ui.platform.LocalContext
 import java.time.Instant
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HealthScreen() {
     val db = LocalAppDatabase.current
@@ -81,8 +89,10 @@ fun HealthScreen() {
         .collectAsState(initial = null)
 
     val profileState = remember(userId) { mutableStateOf<com.volovod.alta.data.entities.ProfileEntity?>(null) }
+    var isLoadingProfile by remember(userId) { mutableStateOf(true) }
     LaunchedEffect(userId) {
         if (userId == null) return@LaunchedEffect
+        isLoadingProfile = true
         authRepository.getProfile().fold(
             onSuccess = { profileResponse ->
                 profileState.value = com.volovod.alta.data.entities.ProfileEntity(
@@ -98,6 +108,7 @@ fun HealthScreen() {
             },
             onFailure = { /* Handle error or show a message */ }
         )
+        isLoadingProfile = false
     }
 
     val weight = latestWeight?.weightKg ?: profileState.value?.weightKg
@@ -191,6 +202,9 @@ fun HealthScreen() {
         mutableStateOf((smokeStatus?.packsPerDay ?: 0.0).takeIf { it > 0 }?.toString() ?: "")
     }
 
+    var showSettingsSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
     // Нативная анимация пульсации сердца
     val infiniteTransition = rememberInfiniteTransition(label = "heartBeat")
     val heartScale by infiniteTransition.animateFloat(
@@ -229,199 +243,226 @@ fun HealthScreen() {
             )
         }
 
-        ModernCard {
-            Text(
-                text = "ИМТ и рекомендации",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = when {
-                    bmi == null -> "Заполните профиль (рост/вес), чтобы рассчитать ИМТ."
-                    bmi < 18.5 -> "ИМТ: ${"%.1f".format(bmi)} • Недостаточный вес"
-                    bmi < 25.0 -> "ИМТ: ${"%.1f".format(bmi)} • Норма"
-                    bmi < 30.0 -> "ИМТ: ${"%.1f".format(bmi)} • Избыточный вес"
-                    else -> "ИМТ: ${"%.1f".format(bmi)} • Ожирение"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = if (bmi == null) "—" else "Рекомендация: держите ИМТ в диапазоне 18.5–24.9. При необходимости — корректируйте питание и активность.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        ModernCard {
-            Text(
-                text = "Я не курю",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(text = "Вы не курите уже", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        text = "${(secondsNoSmoke / 3600).toInt()} ч ${(secondsNoSmoke % 3600 / 60).toInt()} мин",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(text = "Сэкономлено", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        text = "${"%.0f".format(moneySaved)} ₽",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-                }
+        if (isLoadingProfile) {
+            SkeletonCard(modifier = Modifier.fillMaxWidth())
+            SkeletonCard(modifier = Modifier.fillMaxWidth())
+        } else {
+            ModernCard {
+                Text(
+                    text = "ИМТ и рекомендации",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = when {
+                        bmi == null -> "Заполните профиль (рост/вес), чтобы рассчитать ИМТ."
+                        bmi < 18.5 -> "ИМТ: ${"%.1f".format(bmi)} • Недостаточный вес"
+                        bmi < 25.0 -> "ИМТ: ${"%.1f".format(bmi)} • Норма"
+                        bmi < 30.0 -> "ИМТ: ${"%.1f".format(bmi)} • Избыточный вес"
+                        else -> "ИМТ: ${"%.1f".format(bmi)} • Ожирение"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = if (bmi == null) "—" else "Рекомендация: держите ИМТ в диапазоне 18.5–24.9. При необходимости — корректируйте питание и активность.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            ModernButton(
-                text = "Я покурил",
-                onClick = {
-                    if (userId == null) return@ModernButton
-                    scope.launch {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        val nowMs = System.currentTimeMillis()
-                        val current = withContext(Dispatchers.IO) { db.smokeDao().get(userId) }
-                        val packPrice = current?.packPrice ?: 0.0
-                        val packsPerDay = current?.packsPerDay ?: 0.0
 
-                        smokeRemoteRepository.upsertSmokeStatus(
-                            startedAtIso = Instant.ofEpochMilli(nowMs).toString(),
-                            isActive = true,
-                            packPrice = packPrice,
-                            packsPerDay = packsPerDay,
+            ModernCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Я не курю",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    IconButton(onClick = { showSettingsSheet = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Настройки",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(text = "Вы не курите уже", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = "${(secondsNoSmoke / 3600).toInt()} ч ${(secondsNoSmoke % 3600 / 60).toInt()} мин",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(text = "Сэкономлено", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = "${"%.0f".format(moneySaved)} ₽",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                ModernButton(
+                    text = "Я покурил",
+                    onClick = {
+                        if (userId == null) return@ModernButton
+                        scope.launch {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val nowMs = System.currentTimeMillis()
+                            val current = withContext(Dispatchers.IO) { db.smokeDao().get(userId) }
+                            val packPrice = current?.packPrice ?: 0.0
+                            val packsPerDay = current?.packsPerDay ?: 0.0
 
-                        withContext(Dispatchers.IO) {
-                            val local = (current ?: SmokeStatusEntity(
-                                userId = userId,
-                                startedAtEpochMs = nowMs,
+                            smokeRemoteRepository.upsertSmokeStatus(
+                                startedAtIso = Instant.ofEpochMilli(nowMs).toString(),
                                 isActive = true,
                                 packPrice = packPrice,
                                 packsPerDay = packsPerDay,
-                                updatedAtEpochMs = nowMs,
-                            ))
-                            db.smokeDao().upsert(
-                                local.copy(
+                            )
+
+                            withContext(Dispatchers.IO) {
+                                val local = (current ?: SmokeStatusEntity(
+                                    userId = userId,
                                     startedAtEpochMs = nowMs,
+                                    isActive = true,
+                                    packPrice = packPrice,
+                                    packsPerDay = packsPerDay,
                                     updatedAtEpochMs = nowMs,
-                                ),
-                            )
-                        }
-                    }
-                }
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Настройки",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                ModernTextField(
-                    value = packPriceText,
-                    onValueChange = { newValue ->
-                        // Разрешаем только цифры и одну точку/запятую для десятичных дробей
-                        val filtered = newValue.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }
-                        // Заменяем запятую на точку для корректного парсинга
-                        val formatted = filtered.replace(',', '.')
-                        // Разрешаем только одну точку
-                        if (formatted.count { it == '.' } <= 1) {
-                            packPriceText = formatted
-                        }
-                    },
-                    label = "Цена пачки",
-                    modifier = Modifier.weight(1f)
-                )
-                ModernTextField(
-                    value = packsPerDayText,
-                    onValueChange = { newValue ->
-                        // Разрешаем только цифры и одну точку/запятую для десятичных дробей
-                        val filtered = newValue.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }
-                        // Заменяем запятую на точку для корректного парсинга
-                        val formatted = filtered.replace(',', '.')
-                        // Разрешаем только одну точку
-                        if (formatted.count { it == '.' } <= 1) {
-                            packsPerDayText = formatted
-                        }
-                    },
-                    label = "Пачек/день",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            ModernButton(
-                text = "Сохранить",
-                onClick = {
-                    if (userId == null) return@ModernButton
-                    val price = packPriceText.toDoubleOrNull() ?: 0.0
-                    val ppd = packsPerDayText.toDoubleOrNull() ?: 0.0
-                    scope.launch {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        val current = withContext(Dispatchers.IO) { db.smokeDao().get(userId) }
-                        val startedAtMs = current?.startedAtEpochMs ?: System.currentTimeMillis()
-                        smokeRemoteRepository.upsertSmokeStatus(
-                            startedAtIso = Instant.ofEpochMilli(startedAtMs).toString(),
-                            isActive = current?.isActive ?: true,
-                            packPrice = price,
-                            packsPerDay = ppd,
-                        )
-                        withContext(Dispatchers.IO) {
-                            val localCurrent = db.smokeDao().get(userId) ?: return@withContext
-                            // Проверяем, изменились ли значения перед обновлением
-                            val isChanged = localCurrent.packPrice != price || localCurrent.packsPerDay != ppd
-                            
-                            db.smokeDao().upsert(
-                                localCurrent.copy(
-                                    packPrice = price,
-                                    packsPerDay = ppd,
-                                    updatedAtEpochMs = System.currentTimeMillis(),
-                                ),
-                            )
-                            
-                            // XP за день без курения (простая логика: 1 событие в день)
-                            // Начисляем XP только если значения действительно изменились
-                            if (isChanged) {
-                                // Server-first XP event
-                                xpRemoteRepository.createXpEvent(
-                                    dateEpochDay = today,
-                                    type = "nosmoke",
-                                    points = 10,
-                                    note = "No smoke settings updated",
-                                )
-                                // Cache locally (always) so UI updates immediately
-                                db.xpDao().insert(
-                                    com.volovod.alta.data.entities.XpEventEntity(
-                                        userId = userId,
-                                        dateEpochDay = today,
-                                        type = "nosmoke",
-                                        points = 10,
-                                        note = "No smoke settings updated",
-                                        createdAtEpochMs = System.currentTimeMillis(),
+                                ))
+                                db.smokeDao().upsert(
+                                    local.copy(
+                                        startedAtEpochMs = nowMs,
+                                        updatedAtEpochMs = nowMs,
                                     ),
                                 )
                             }
                         }
                     }
-                },
-            )
+                )
+            }
+        }
+    }
+
+    if (showSettingsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSettingsSheet = false },
+            sheetState = sheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Настройки",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    ModernTextField(
+                        value = packPriceText,
+                        onValueChange = { newValue ->
+                            // Разрешаем только цифры и одну точку/запятую для десятичных дробей
+                            val filtered = newValue.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }
+                            // Заменяем запятую на точку для корректного парсинга
+                            val formatted = filtered.replace(',', '.')
+                            // Разрешаем только одну точку
+                            if (formatted.count { it == '.' } <= 1) {
+                                packPriceText = formatted
+                            }
+                        },
+                        label = "Цена пачки",
+                        modifier = Modifier.weight(1f)
+                    )
+                    ModernTextField(
+                        value = packsPerDayText,
+                        onValueChange = { newValue ->
+                            // Разрешаем только цифры и одну точку/запятую для десятичных дробей
+                            val filtered = newValue.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }
+                            // Заменяем запятую на точку для корректного парсинга
+                            val formatted = filtered.replace(',', '.')
+                            // Разрешаем только одну точку
+                            if (formatted.count { it == '.' } <= 1) {
+                                packsPerDayText = formatted
+                            }
+                        },
+                        label = "Пачек/день",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                ModernButton(
+                    text = "Сохранить",
+                    onClick = {
+                        if (userId == null) return@ModernButton
+                        val price = packPriceText.toDoubleOrNull() ?: 0.0
+                        val ppd = packsPerDayText.toDoubleOrNull() ?: 0.0
+                        scope.launch {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val current = withContext(Dispatchers.IO) { db.smokeDao().get(userId) }
+                            val startedAtMs = current?.startedAtEpochMs ?: System.currentTimeMillis()
+                            smokeRemoteRepository.upsertSmokeStatus(
+                                startedAtIso = Instant.ofEpochMilli(startedAtMs).toString(),
+                                isActive = current?.isActive ?: true,
+                                packPrice = price,
+                                packsPerDay = ppd,
+                            )
+                            withContext(Dispatchers.IO) {
+                                val localCurrent = db.smokeDao().get(userId) ?: return@withContext
+                                // Проверяем, изменились ли значения перед обновлением
+                                val isChanged = localCurrent.packPrice != price || localCurrent.packsPerDay != ppd
+                                
+                                db.smokeDao().upsert(
+                                    localCurrent.copy(
+                                        packPrice = price,
+                                        packsPerDay = ppd,
+                                        updatedAtEpochMs = System.currentTimeMillis(),
+                                    ),
+                                )
+                                
+                                // XP за день без курения (простая логика: 1 событие в день)
+                                // Начисляем XP только если значения действительно изменились
+                                if (isChanged) {
+                                    // Server-first XP event
+                                    xpRemoteRepository.createXpEvent(
+                                        dateEpochDay = today,
+                                        type = "nosmoke",
+                                        points = 10,
+                                        note = "No smoke settings updated",
+                                    )
+                                    // Cache locally (always) so UI updates immediately
+                                    db.xpDao().insert(
+                                        com.volovod.alta.data.entities.XpEventEntity(
+                                            userId = userId,
+                                            dateEpochDay = today,
+                                            type = "nosmoke",
+                                            points = 10,
+                                            note = "No smoke settings updated",
+                                            createdAtEpochMs = System.currentTimeMillis(),
+                                        ),
+                                    )
+                                }
+                            }
+                            showSettingsSheet = false
+                        }
+                    }
+                )
+            }
         }
     }
 }

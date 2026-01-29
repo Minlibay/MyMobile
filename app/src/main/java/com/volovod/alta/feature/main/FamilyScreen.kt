@@ -21,6 +21,7 @@ import com.volovod.alta.data.repository.FamilyRepository
 import com.volovod.alta.ui.components.ModernButton
 import com.volovod.alta.ui.components.ModernCard
 import com.volovod.alta.ui.components.ModernTextField
+import com.volovod.alta.ui.components.SkeletonCard
 import kotlinx.coroutines.launch
 
 @Composable
@@ -31,12 +32,21 @@ fun FamilyScreen() {
 
     var family by remember { mutableStateOf<com.volovod.alta.network.dto.FamilyResponseDto?>(null) }
     var members by remember { mutableStateOf<List<com.volovod.alta.network.dto.FamilyMemberResponseDto>>(emptyList()) }
+    var invites by remember { mutableStateOf<List<com.volovod.alta.network.dto.FamilyInviteResponseDto>>(emptyList()) }
+    var invitesLoading by remember { mutableStateOf(true) }
     var loading by remember { mutableStateOf(true) }
     var errorText by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         loading = true
+        invitesLoading = true
         errorText = null
+
+        repository.getMyInvites()
+            .onSuccess { invites = it }
+            .onFailure { invites = emptyList() }
+        invitesLoading = false
+
         repository.getMyFamily()
             .onSuccess { f ->
                 family = f
@@ -69,10 +79,70 @@ fun FamilyScreen() {
             fontWeight = FontWeight.Bold
         )
 
-        if (loading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+        if (invitesLoading) {
+            SkeletonCard(modifier = Modifier.fillMaxWidth())
+        } else if (invites.isNotEmpty() && family == null) {
+            Text(
+                text = "Приглашения",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            invites.forEach { invite ->
+                ModernCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = invite.family_name,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Пригласил: ${invite.invited_by_login}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            ModernButton(
+                                text = "Принять",
+                                onClick = {
+                                    scope.launch {
+                                        repository.acceptInvite(invite.id)
+                                            .onSuccess { f ->
+                                                family = f
+                                                repository.getMyFamilyMembers()
+                                                    .onSuccess { members = it }
+                                                invites = emptyList()
+                                            }
+                                            .onFailure { errorText = it.message ?: "Ошибка принятия" }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        repository.declineInvite(invite.id)
+                                            .onSuccess {
+                                                invites = invites.filterNot { it.id == invite.id }
+                                            }
+                                            .onFailure { errorText = it.message ?: "Ошибка отклонения" }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Отклонить")
+                            }
+                        }
+                    }
+                }
             }
+        }
+
+        if (loading) {
+            SkeletonCard(modifier = Modifier.fillMaxWidth())
+            SkeletonCard(modifier = Modifier.fillMaxWidth())
         } else if (family == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {

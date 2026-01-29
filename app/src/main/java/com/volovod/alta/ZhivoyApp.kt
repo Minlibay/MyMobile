@@ -29,7 +29,7 @@ private fun provideDatabase(context: Context): AppDatabase {
 @Composable
 fun AltaApp() {
     val context = LocalContext.current.applicationContext
-    val db = provideDatabase(context)
+    val db = remember { provideDatabase(context) }
     val sessionStore = remember { SessionStore(context) }
     
     // Инициализируем authApi после создания sessionStore

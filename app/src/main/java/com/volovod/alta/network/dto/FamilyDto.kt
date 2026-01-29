@@ -33,4 +33,14 @@ data class FamilyResponseDto(
     val members: List<FamilyMemberResponseDto>,
 )
 
+@Serializable
+data class FamilyInviteResponseDto(
+    val id: Int,
+    val family_id: Int,
+    val family_name: String,
+    val invited_by_user_id: Int,
+    val invited_by_login: String,
+    val created_at: String,
+)
+
 

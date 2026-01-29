@@ -24,6 +24,7 @@ import com.volovod.alta.data.repository.XpRemoteRepository
 import com.volovod.alta.feature.main.brain.AddBookDialog
 import com.volovod.alta.feature.main.brain.UpdateProgressDialog
 import com.volovod.alta.ui.components.ModernCard
+import com.volovod.alta.ui.components.SkeletonCard
 import com.volovod.alta.util.DateTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -46,6 +47,13 @@ fun BrainScreen() {
 
     var showAddDialog by remember { mutableStateOf(false) }
     var updatingBook by remember { mutableStateOf<BookEntryEntity?>(null) }
+    var isLoading by remember(userId) { mutableStateOf(true) }
+    LaunchedEffect(userId) {
+        if (userId == null) return@LaunchedEffect
+        isLoading = true
+        // Здесь можно добавить загрузку данных с бэкенда, если нужно
+        isLoading = false
+    }
 
     Column(
         modifier = Modifier
@@ -95,7 +103,10 @@ fun BrainScreen() {
             }
         }
 
-        if (books.isEmpty()) {
+        if (isLoading) {
+            SkeletonCard(modifier = Modifier.fillMaxWidth())
+            SkeletonCard(modifier = Modifier.fillMaxWidth())
+        } else if (books.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
                     text = "Пока нет добавленных книг",

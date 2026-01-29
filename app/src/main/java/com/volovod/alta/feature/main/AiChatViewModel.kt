@@ -40,11 +40,16 @@ class AiChatViewModel(
     private val _isConfigured = MutableStateFlow(false)
     val isConfigured = _isConfigured.asStateFlow()
 
+    private val _isConfiguring = MutableStateFlow(true)
+    val isConfiguring = _isConfiguring.asStateFlow()
+
     init {
         viewModelScope.launch {
+            _isConfiguring.value = true
             val settings = repository.adminSettingsRepository.getSettings()
             _isConfigured.value = settings.isSuccess && 
                 settings.getOrNull()?.openrouter_api_key?.isNotBlank() == true
+            _isConfiguring.value = false
         }
     }
 
@@ -79,9 +84,11 @@ class AiChatViewModel(
 
     fun refreshSettings() {
         viewModelScope.launch {
+            _isConfiguring.value = true
             val settings = repository.adminSettingsRepository.getSettings()
             _isConfigured.value = settings.isSuccess && 
                 settings.getOrNull()?.openrouter_api_key?.isNotBlank() == true
+            _isConfiguring.value = false
         }
     }
 

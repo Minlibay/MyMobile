@@ -12,13 +12,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
-from app.models import AdUnit, AdminUser, Family, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry, BookEntry, XpEvent, UserAchievement, SyncQueue, AdminSettings
+from app.models import AdUnit, AdminUser, Family, FamilyInvite, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry, BookEntry, XpEvent, UserAchievement, SyncQueue, AdminSettings, Announcement
 from app.schemas import (
     AdUnitUpsert,
     AdsConfigResponse,
     FamilyMemberResponse,
     FamilyRequest,
     FamilyResponse,
+    FamilyInviteResponse,
     InviteUserRequest,
     JoinFamilyRequest,
     LoginRequest,
@@ -54,6 +55,7 @@ from app.schemas import (
     AdminSettingsResponse,
     AnnouncementReadResponse,
     AnnouncementResponse,
+    AnnouncementRequest,
     PrivacyPolicyAcceptResponse,
     PrivacyPolicyResponse,
     TokenPair,
@@ -222,15 +224,13 @@ def admin_logout(request: Request):
 
 
 @app.get("/admin/settings", response_class=HTMLResponse)
-def admin_settings(request: Request, db: Session = Depends(get_db)):
-    guard = admin_guard(request, db)
-    if isinstance(guard, RedirectResponse):
-        return guard
-    
-    return templates.TemplateResponse(
-        "admin_settings.html",
-        {"request": request},
-    )
+def admin_settings_page(request: Request, db: Session = Depends(get_db)):
+    # Simple auth check (you can replace with proper session/auth)
+    token = request.cookies.get("admin_token")
+    if not token:
+        return RedirectResponse(url="/admin/login", status_code=302)
+    # TODO: validate token against admin users
+    return templates.TemplateResponse("admin_settings_new.html", {"request": request})
 
 
 @app.get("/admin/users", response_class=HTMLResponse)
@@ -780,6 +780,91 @@ def read_announcement(user: User = Depends(require_user), db: Session = Depends(
     )
 
 
+# Admin announcements (news) management
+@app.get("/admin/announcements", response_model=List[AnnouncementResponse])
+def list_announcements(db: Session = Depends(get_db)) -> List[AnnouncementResponse]:
+    rows = db.execute(select(Announcement).order_by(Announcement.created_at.desc())).scalars().all()
+    return [
+        AnnouncementResponse(
+            id=row.id,
+            title=row.title,
+            text=row.text,
+            button_enabled=row.button_enabled,
+            button_text=row.button_text,
+            button_url=row.button_url,
+            is_active=row.is_active,
+            created_at=row.created_at.isoformat(),
+            updated_at=row.updated_at.isoformat(),
+        )
+        for row in rows
+    ]
+
+
+@app.post("/admin/announcements", response_model=AnnouncementResponse)
+def create_announcement(req: AnnouncementRequest, db: Session = Depends(get_db)) -> AnnouncementResponse:
+    row = Announcement(
+        title=req.title,
+        text=req.text,
+        button_enabled=req.button_enabled,
+        button_text=req.button_text,
+        button_url=req.button_url,
+        is_active=req.is_active,
+        created_at=now(),
+        updated_at=now(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return AnnouncementResponse(
+        id=row.id,
+        title=row.title,
+        text=row.text,
+        button_enabled=row.button_enabled,
+        button_text=row.button_text,
+        button_url=row.button_url,
+        is_active=row.is_active,
+        created_at=row.created_at.isoformat(),
+        updated_at=row.updated_at.isoformat(),
+    )
+
+
+@app.put("/admin/announcements/{announcement_id}", response_model=AnnouncementResponse)
+def update_announcement(announcement_id: int, req: AnnouncementRequest, db: Session = Depends(get_db)) -> AnnouncementResponse:
+    row = db.execute(select(Announcement).where(Announcement.id == announcement_id)).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    row.title = req.title
+    row.text = req.text
+    row.button_enabled = req.button_enabled
+    row.button_text = req.button_text
+    row.button_url = req.button_url
+    row.is_active = req.is_active
+    row.updated_at = now()
+    db.commit()
+    db.refresh(row)
+    return AnnouncementResponse(
+        id=row.id,
+        title=row.title,
+        text=row.text,
+        button_enabled=row.button_enabled,
+        button_text=row.button_text,
+        button_url=row.button_url,
+        is_active=row.is_active,
+        created_at=row.created_at.isoformat(),
+        updated_at=row.updated_at.isoformat(),
+    )
+
+
+@app.delete("/admin/announcements/{announcement_id}")
+def delete_announcement(announcement_id: int, db: Session = Depends(get_db)):
+    row = db.execute(select(Announcement).where(Announcement.id == announcement_id)).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    db.delete(row)
+    db.commit()
+    return {"detail": "Announcement deleted"}
+
+
 @app.post("/families", response_model=FamilyResponse)
 def create_family(req: FamilyRequest, user: User = Depends(require_user), db: Session = Depends(get_db)) -> FamilyResponse:
     existing_family = db.execute(select(Family).where(Family.name == req.name)).scalar_one_or_none()
@@ -915,20 +1000,103 @@ def invite_user(req: InviteUserRequest, user: User = Depends(require_user), db: 
     if existing_member is not None:
         raise HTTPException(status_code=409, detail="Target user is already in a family")
 
-    # Check if target user is already invited (implicitly by adding to FamilyMember table)
-    existing_invitation = db.execute(select(FamilyMember).where(FamilyMember.family_id == family.id, FamilyMember.user_id == target_user.id)).scalar_one_or_none()
-    if existing_invitation is not None:
+    existing_invite = db.execute(
+        select(FamilyInvite).where(
+            FamilyInvite.family_id == family.id,
+            FamilyInvite.invited_user_id == target_user.id,
+        )
+    ).scalar_one_or_none()
+    if existing_invite is not None:
         raise HTTPException(status_code=409, detail="Target user already invited to this family")
 
-    # Add target user as a family member
+    invite = FamilyInvite(
+        family_id=family.id,
+        invited_user_id=target_user.id,
+        invited_by_user_id=user.id,
+        created_at=now(),
+    )
+    db.add(invite)
+    db.commit()
+    return {"status": "invited"}
+
+
+@app.get("/families/invites", response_model=List[FamilyInviteResponse])
+def get_family_invites(user: User = Depends(require_user), db: Session = Depends(get_db)) -> List[FamilyInviteResponse]:
+    rows = (
+        db.execute(
+            select(FamilyInvite)
+            .where(FamilyInvite.invited_user_id == user.id)
+            .order_by(FamilyInvite.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        FamilyInviteResponse(
+            id=r.id,
+            family_id=r.family_id,
+            family_name=r.family.name,
+            invited_by_user_id=r.invited_by_user_id,
+            invited_by_login=r.invited_by_user.login,
+            created_at=r.created_at.isoformat(),
+        )
+        for r in rows
+    ]
+
+
+@app.post("/families/invites/{invite_id}/accept", response_model=FamilyResponse)
+def accept_family_invite(invite_id: int, user: User = Depends(require_user), db: Session = Depends(get_db)) -> FamilyResponse:
+    # Cannot accept if already in a family
+    existing_member = db.execute(select(FamilyMember).where(FamilyMember.user_id == user.id)).scalar_one_or_none()
+    if existing_member is not None:
+        raise HTTPException(status_code=409, detail="User is already in a family")
+
+    invite = db.get(FamilyInvite, invite_id)
+    if invite is None or invite.invited_user_id != user.id:
+        raise HTTPException(status_code=404, detail="Invite not found")
+
+    family = db.get(Family, invite.family_id)
+    if family is None:
+        raise HTTPException(status_code=404, detail="Family not found")
+
+    # Create membership
     member = FamilyMember(
         family_id=family.id,
-        user_id=target_user.id,
+        user_id=user.id,
         joined_at=now(),
     )
     db.add(member)
+
+    # Delete all invites for this user (only 1 family allowed)
+    db.execute(delete(FamilyInvite).where(FamilyInvite.invited_user_id == user.id))
     db.commit()
-    return {"status": "invited"}
+    db.refresh(family)
+
+    return FamilyResponse(
+        id=family.id,
+        name=family.name,
+        admin_user_id=family.admin_user_id,
+        created_at=family.created_at.isoformat(),
+        members=[
+            FamilyMemberResponse(
+                user_id=m.user.id,
+                login=m.user.login,
+                joined_at=m.joined_at.isoformat(),
+            )
+            for m in family.members
+        ],
+    )
+
+
+@app.post("/families/invites/{invite_id}/decline")
+def decline_family_invite(invite_id: int, user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict[str, str]:
+    invite = db.get(FamilyInvite, invite_id)
+    if invite is None or invite.invited_user_id != user.id:
+        raise HTTPException(status_code=404, detail="Invite not found")
+
+    db.delete(invite)
+    db.commit()
+    return {"status": "declined"}
 
 
 @app.post("/families/join", response_model=FamilyResponse)

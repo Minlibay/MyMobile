@@ -39,6 +39,8 @@ import com.volovod.alta.feature.main.training.PlankDialog
 import com.volovod.alta.ui.components.ModernButton
 import com.volovod.alta.ui.components.ModernOutlinedButton
 import com.volovod.alta.ui.components.ModernCard
+import com.volovod.alta.ui.components.SkeletonCard
+import com.volovod.alta.ui.components.SkeletonStatCard
 import com.volovod.alta.util.DateTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -96,6 +98,14 @@ fun TrainingsScreen() {
     var showAddTemplate by remember { mutableStateOf(false) }
     var showQuickAdd by remember { mutableStateOf(false) }
     var showPlank by remember { mutableStateOf(false) }
+
+    var isLoading by remember(userId) { mutableStateOf(true) }
+    LaunchedEffect(userId) {
+        if (userId == null) return@LaunchedEffect
+        isLoading = true
+        // Здесь можно добавить загрузку данных с бэкенда, если нужно
+        isLoading = false
+    }
 
     if (showPlank) {
         PlankDialog(
@@ -242,51 +252,55 @@ fun TrainingsScreen() {
         )
 
         // Weekly Goal Progress
-        ModernCard {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Цель на неделю",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    val target = weekGoal?.targetTrainingsCount ?: 3
-                    Text(
-                        text = "Выполнено: $completedThisWeek из $target",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LinearProgressIndicator(
-                        progress = (completedThisWeek.toFloat() / target).coerceIn(0f, 1f),
-                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                }
-                IconButton(onClick = {
-                    if (userId == null) return@IconButton
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            val target = weekGoal?.targetTrainingsCount ?: 3
-                            db.trainingWeekGoalDao().upsert(
-                                TrainingWeekGoalEntity(
-                                    id = weekGoal?.id ?: 0,
-                                    userId = userId,
-                                    weekEpochDay = monday,
-                                    targetTrainingsCount = if (target >= 7) 1 else target + 1,
-                                    updatedAtEpochMs = System.currentTimeMillis()
-                                )
-                            )
-                        }
+        if (isLoading) {
+            SkeletonCard(modifier = Modifier.fillMaxWidth())
+        } else {
+            ModernCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Цель на неделю",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val target = weekGoal?.targetTrainingsCount ?: 3
+                        Text(
+                            text = "Выполнено: $completedThisWeek из $target",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = (completedThisWeek.toFloat() / target).coerceIn(0f, 1f),
+                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
                     }
-                }) {
-                    Icon(Icons.Default.Add, contentDescription = "Edit Goal")
+                    IconButton(onClick = {
+                        if (userId == null) return@IconButton
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                val target = weekGoal?.targetTrainingsCount ?: 3
+                                db.trainingWeekGoalDao().upsert(
+                                    TrainingWeekGoalEntity(
+                                        id = weekGoal?.id ?: 0,
+                                        userId = userId,
+                                        weekEpochDay = monday,
+                                        targetTrainingsCount = if (target >= 7) 1 else target + 1,
+                                        updatedAtEpochMs = System.currentTimeMillis()
+                                    )
+                                )
+                            }
+                        }
+                    }) {
+                        Icon(Icons.Default.Add, contentDescription = "Edit Goal")
+                    }
                 }
             }
         }
@@ -338,7 +352,9 @@ fun TrainingsScreen() {
         )
 
         // Planned Trainings
-        if (plansForDay.isNotEmpty()) {
+        if (isLoading) {
+            SkeletonCard(modifier = Modifier.fillMaxWidth())
+        } else if (plansForDay.isNotEmpty()) {
             plansForDay.forEach { plan ->
                 val template = templates.find { it.id == plan.templateId }
                 ModernCard(
@@ -412,7 +428,9 @@ fun TrainingsScreen() {
         }
 
         // Completed Trainings
-        if (completedForSelected.isNotEmpty()) {
+        if (isLoading) {
+            SkeletonCard(modifier = Modifier.fillMaxWidth())
+        } else if (completedForSelected.isNotEmpty()) {
             completedForSelected.forEach { training ->
                 ModernCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -435,7 +453,7 @@ fun TrainingsScreen() {
             }
         }
 
-        if (plansForDay.isEmpty() && completedForSelected.isEmpty()) {
+        if (!isLoading && plansForDay.isEmpty() && completedForSelected.isEmpty()) {
             Text(
                 text = "На этот день ничего не запланировано",
                 style = MaterialTheme.typography.bodyMedium,
