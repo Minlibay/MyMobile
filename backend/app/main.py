@@ -1935,7 +1935,6 @@ def require_admin_user(request: Request, db: Session = Depends(get_db)) -> Admin
 
 @app.get("/admin/api/settings", response_model=AdminSettingsResponse)
 def get_admin_settings(
-    admin_user: AdminUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> AdminSettingsResponse:
     row = db.execute(select(AdminSettings)).scalar_one_or_none()
