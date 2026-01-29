@@ -225,12 +225,18 @@ def admin_logout(request: Request):
 
 @app.get("/admin/settings", response_class=HTMLResponse)
 def admin_settings_page(request: Request, db: Session = Depends(get_db)):
-    # Simple auth check (you can replace with proper session/auth)
-    token = request.cookies.get("admin_token")
-    if not token:
-        return RedirectResponse(url="/admin/login", status_code=302)
-    # TODO: validate token against admin users
-    return templates.TemplateResponse("admin_settings_new.html", {"request": request})
+    guard = admin_guard(request, db)
+    if isinstance(guard, RedirectResponse):
+        return guard
+    admin_user = guard
+    return templates.TemplateResponse(
+        "admin_settings_new.html",
+        {
+            "request": request,
+            "title": "Admin • Settings",
+            "admin_user": admin_user,
+        },
+    )
 
 
 @app.get("/admin/users", response_class=HTMLResponse)
@@ -1923,8 +1929,13 @@ def sync_batch(
     return SyncBatchResponse(processed=processed, failed=failed, errors=errors)
 
 
+def require_admin_user(request: Request, db: Session = Depends(get_db)) -> AdminUser:
+    return require_admin_session(request, db)
+
+
 @app.get("/admin/api/settings", response_model=AdminSettingsResponse)
 def get_admin_settings(
+    admin_user: AdminUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> AdminSettingsResponse:
     row = db.execute(select(AdminSettings)).scalar_one_or_none()
@@ -1975,6 +1986,7 @@ def get_admin_settings(
 @app.put("/admin/api/settings", response_model=AdminSettingsResponse)
 def update_admin_settings(
     req: AdminSettingsRequest,
+    admin_user: AdminUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> AdminSettingsResponse:
     row = db.execute(select(AdminSettings)).scalar_one_or_none()
