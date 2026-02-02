@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
-from app.models import AdUnit, AdminUser, Family, FamilyInvite, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry, BookEntry, XpEvent, UserAchievement, SyncQueue, AdminSettings, Announcement
+from app.models import AdUnit, AdminUser, Family, FamilyGoal, FamilyInvite, FamilyMember, Profile, RefreshSession, User, UserSettings, StepEntry, WaterEntry, WeightEntry, SmokeStatus, FoodEntry, TrainingEntry, BookEntry, XpEvent, UserAchievement, SyncQueue, AdminSettings, Announcement
 from app.schemas import (
     AdUnitUpsert,
     AdsConfigResponse,
@@ -22,6 +22,8 @@ from app.schemas import (
     FamilyInviteResponse,
     InviteUserRequest,
     JoinFamilyRequest,
+    FamilyGoalsResponse,
+    FamilyGoalsUpsertRequest,
     LoginRequest,
     LogoutRequest,
     ProfileRequest,
@@ -98,6 +100,93 @@ bearer = HTTPBearer(auto_error=False)
 
 def now() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
+
+
+def week_bounds(target: dt.date | None = None) -> tuple[int, int]:
+    """Return (week_start_epoch_day, week_end_epoch_day) for Monday-Sunday (UTC)."""
+    if target is None:
+        target = dt.datetime.now(dt.timezone.utc).date()
+    weekday = target.weekday()  # Monday=0
+    start_date = target - dt.timedelta(days=weekday)
+    end_date = start_date + dt.timedelta(days=6)
+    epoch = dt.date(1970, 1, 1)
+    return (start_date - epoch).days, (end_date - epoch).days
+
+
+def require_family_and_members(user: User, db: Session) -> tuple[Family, list[FamilyMember]]:
+    member = db.execute(select(FamilyMember).where(FamilyMember.user_id == user.id)).scalar_one_or_none()
+    if member is None:
+        raise HTTPException(status_code=404, detail="User is not in a family")
+    family = db.get(Family, member.family_id)
+    if family is None:
+        raise HTTPException(status_code=404, detail="Family not found")
+    db.refresh(family)
+    members = family.members
+    return family, members
+
+
+def aggregate_family_progress(members: list[FamilyMember], week_start: int, week_end: int, db: Session):
+    member_ids = [m.user_id for m in members]
+    if not member_ids:
+        return {
+            "steps": 0,
+            "trainings": 0,
+            "water": 0,
+            "per_member": {},
+        }
+
+    steps_rows = db.execute(
+        select(StepEntry.user_id, func.sum(StepEntry.steps))
+        .where(
+            StepEntry.user_id.in_(member_ids),
+            StepEntry.date_epoch_day >= week_start,
+            StepEntry.date_epoch_day <= week_end,
+        )
+        .group_by(StepEntry.user_id)
+    ).all()
+    steps_map = {uid: steps or 0 for uid, steps in steps_rows}
+
+    trainings_rows = db.execute(
+        select(TrainingEntry.user_id, func.count())
+        .where(
+            TrainingEntry.user_id.in_(member_ids),
+            TrainingEntry.date_epoch_day >= week_start,
+            TrainingEntry.date_epoch_day <= week_end,
+        )
+        .group_by(TrainingEntry.user_id)
+    ).all()
+    trainings_map = {uid: cnt or 0 for uid, cnt in trainings_rows}
+
+    water_rows = db.execute(
+        select(WaterEntry.user_id, func.sum(WaterEntry.amount_ml))
+        .where(
+            WaterEntry.user_id.in_(member_ids),
+            WaterEntry.date_epoch_day >= week_start,
+            WaterEntry.date_epoch_day <= week_end,
+        )
+        .group_by(WaterEntry.user_id)
+    ).all()
+    water_map = {uid: ml or 0 for uid, ml in water_rows}
+
+    per_member = {}
+    for m in members:
+        per_member[m.user_id] = {
+            "login": m.user.login,
+            "steps": steps_map.get(m.user_id, 0),
+            "trainings": trainings_map.get(m.user_id, 0),
+            "water": water_map.get(m.user_id, 0),
+        }
+
+    total_steps = sum(v["steps"] for v in per_member.values())
+    total_trainings = sum(v["trainings"] for v in per_member.values())
+    total_water = sum(v["water"] for v in per_member.values())
+
+    return {
+        "steps": total_steps,
+        "trainings": total_trainings,
+        "water": total_water,
+        "per_member": per_member,
+    }
 
 
 def require_user(
@@ -988,6 +1077,108 @@ def get_my_family_members(user: User = Depends(require_user), db: Session = Depe
         )
         for m in family.members
     ]
+
+
+@app.get("/families/me/goals", response_model=FamilyGoalsResponse)
+def get_family_goals(user: User = Depends(require_user), db: Session = Depends(get_db)) -> FamilyGoalsResponse:
+    family, members = require_family_and_members(user, db)
+    week_start, week_end = week_bounds()
+
+    goal = db.execute(
+        select(FamilyGoal).where(
+            FamilyGoal.family_id == family.id,
+            FamilyGoal.week_start_epoch_day == week_start,
+        )
+    ).scalar_one_or_none()
+
+    steps_goal = goal.steps_goal if goal else 70000
+    trainings_goal = goal.trainings_goal if goal else 6
+    water_goal_ml = goal.water_goal_ml if goal else 21000
+
+    agg = aggregate_family_progress(members, week_start, week_end, db)
+
+    contributions = [
+        FamilyGoalContribution(
+            user_id=uid,
+            login=data["login"],
+            steps=data["steps"],
+            trainings=data["trainings"],
+            water_ml=data["water"],
+        )
+        for uid, data in agg["per_member"].items()
+    ]
+
+    return FamilyGoalsResponse(
+        week_start_epoch_day=week_start,
+        week_end_epoch_day=week_end,
+        steps_goal=steps_goal,
+        steps_progress=agg["steps"],
+        trainings_goal=trainings_goal,
+        trainings_progress=agg["trainings"],
+        water_goal_ml=water_goal_ml,
+        water_progress_ml=agg["water"],
+        contributions=contributions,
+    )
+
+
+@app.put("/families/me/goals", response_model=FamilyGoalsResponse)
+def upsert_family_goals(
+    req: FamilyGoalsUpsertRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> FamilyGoalsResponse:
+    family, members = require_family_and_members(user, db)
+    if family.admin_user_id != user.id:
+        raise HTTPException(status_code=403, detail="Only family admin can update goals")
+
+    week_start, week_end = week_bounds()
+
+    goal = db.execute(
+        select(FamilyGoal).where(
+            FamilyGoal.family_id == family.id,
+            FamilyGoal.week_start_epoch_day == week_start,
+        )
+    ).scalar_one_or_none()
+
+    if goal is None:
+        goal = FamilyGoal(
+            family_id=family.id,
+            week_start_epoch_day=week_start,
+            steps_goal=req.steps_goal,
+            trainings_goal=req.trainings_goal,
+            water_goal_ml=req.water_goal_ml,
+            created_at=now(),
+        )
+        db.add(goal)
+    else:
+        goal.steps_goal = req.steps_goal
+        goal.trainings_goal = req.trainings_goal
+        goal.water_goal_ml = req.water_goal_ml
+    db.commit()
+
+    agg = aggregate_family_progress(members, week_start, week_end, db)
+    contributions = [
+        FamilyGoalContribution(
+            user_id=uid,
+            login=data["login"],
+            steps=data["steps"],
+            trainings=data["trainings"],
+            water_ml=data["water"],
+        )
+        for uid, data in agg["per_member"].items()
+    ]
+
+    return FamilyGoalsResponse(
+        week_start_epoch_day=week_start,
+        week_end_epoch_day=week_end,
+        steps_goal=goal.steps_goal,
+        steps_progress=agg["steps"],
+        trainings_goal=goal.trainings_goal,
+        trainings_progress=agg["trainings"],
+        water_goal_ml=goal.water_goal_ml,
+        water_progress_ml=agg["water"],
+        contributions=contributions,
+    )
 
 @app.post("/families/me/invite")
 def invite_user(req: InviteUserRequest, user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict[str, str]:

@@ -12,6 +12,7 @@ import com.volovod.alta.config.AiConfig
 import com.volovod.alta.util.DateTime
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import retrofit2.HttpException
 
 @Serializable
 data class FoodAiResponse(
@@ -61,12 +62,20 @@ class AiChatRepository(
 
         val request = OpenRouterRequest(
             model = model,
-            messages = messages
+            messages = messages,
+            max_tokens = 1000,
+            temperature = 0.3f
         )
 
         return try {
             Log.d("AiChatRepository", "Sending AI request: model=$model, hasText=${!text.isNullOrBlank()}, hasImage=${imageBase64 != null}")
-            val response = openRouterApi.getCompletion("Bearer $apiKey", request)
+            val response = try {
+                openRouterApi.getCompletion("Bearer $apiKey", request)
+            } catch (e: HttpException) {
+                val errorBody = e.response()?.errorBody()?.string()
+                Log.e("AiChatRepository", "OpenRouter error ${e.code()}: $errorBody")
+                throw e
+            }
             Log.d("AiChatRepository", "AI response received: choices=${response.choices.size}")
 
             val content = response.choices.firstOrNull()?.message?.content

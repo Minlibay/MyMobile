@@ -117,6 +117,32 @@ class FamilyInviteResponse(BaseModel):
     created_at: str
 
 
+class FamilyGoalContribution(BaseModel):
+    user_id: int
+    login: str
+    steps: int
+    trainings: int
+    water_ml: int
+
+
+class FamilyGoalsResponse(BaseModel):
+    week_start_epoch_day: int
+    week_end_epoch_day: int
+    steps_goal: int
+    steps_progress: int
+    trainings_goal: int
+    trainings_progress: int
+    water_goal_ml: int
+    water_progress_ml: int
+    contributions: List[FamilyGoalContribution]
+
+
+class FamilyGoalsUpsertRequest(BaseModel):
+    steps_goal: int = Field(gt=0)
+    trainings_goal: int = Field(gt=0)
+    water_goal_ml: int = Field(gt=0)
+
+
 class StepUpsertRequest(BaseModel):
     date_epoch_day: int
     steps: int = Field(ge=0)

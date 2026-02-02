@@ -68,6 +68,7 @@ import com.volovod.alta.data.repository.XpRemoteRepository
 import com.volovod.alta.data.repository.SyncRepository
 import com.volovod.alta.data.repository.WaterRepository
 import com.volovod.alta.data.repository.WeightRemoteRepository
+import com.volovod.alta.network.ApiClient
 import com.volovod.alta.network.api.OpenRouterApi
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -357,30 +358,7 @@ fun HomeScreen() {
     var showAddBook by remember { mutableStateOf(false) }
     var showAiChat by remember { mutableStateOf(false) }
 
-    val openRouterApi = remember {
-        // ВАЖНО: используем Json с ignoreUnknownKeys, иначе ответ OpenRouter с лишними полями
-        // (id, created, model, usage и т.п.) будет падать при десериализации.
-        val json = Json {
-            ignoreUnknownKeys = true
-            isLenient = true
-            encodeDefaults = false
-        }
-
-        val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        }
-
-        val client = OkHttpClient.Builder()
-            .addInterceptor(logging)
-            .build()
-
-        Retrofit.Builder()
-            .baseUrl("https://openrouter.ai/api/v1/")
-            .client(client)
-            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-            .build()
-            .create(OpenRouterApi::class.java)
-    }
+    val openRouterApi = remember { ApiClient.createOpenRouterApi() }
 
     val aiChatViewModel = remember(userId) {
         if (userId != null) {

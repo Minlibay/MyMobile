@@ -115,6 +115,7 @@ class Family(Base):
 
     members: Mapped[list["FamilyMember"]] = relationship(back_populates="family", cascade="all, delete-orphan")
     admin: Mapped[User] = relationship("User", foreign_keys=[admin_user_id])
+    goals: Mapped[list["FamilyGoal"]] = relationship(back_populates="family", cascade="all, delete-orphan")
 
 
 class FamilyMember(Base):
@@ -149,6 +150,23 @@ class FamilyInvite(Base):
     family: Mapped[Family] = relationship()
     invited_user: Mapped[User] = relationship("User", foreign_keys=[invited_user_id])
     invited_by_user: Mapped[User] = relationship("User", foreign_keys=[invited_by_user_id])
+
+
+class FamilyGoal(Base):
+    __tablename__ = "family_goals"
+    __table_args__ = (
+        UniqueConstraint("family_id", "week_start_epoch_day", name="uq_family_goals_family_week"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    family_id: Mapped[int] = mapped_column(ForeignKey("families.id"), index=True)
+    week_start_epoch_day: Mapped[int] = mapped_column(Integer, index=True)
+    steps_goal: Mapped[int] = mapped_column(Integer, default=70000)
+    trainings_goal: Mapped[int] = mapped_column(Integer, default=6)
+    water_goal_ml: Mapped[int] = mapped_column(Integer, default=21000)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc))
+
+    family: Mapped[Family] = relationship(back_populates="goals")
 
 
 class StepEntry(Base):

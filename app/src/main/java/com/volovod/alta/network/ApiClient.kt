@@ -238,11 +238,20 @@ object ApiClient {
             level = HttpLoggingInterceptor.Level.BODY
         }
         val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val originalRequest = chain.request()
+                val requestWithHeaders = originalRequest.newBuilder()
+                    .addHeader("Referer", "http://45.134.12.54")
+                    .addHeader("HTTP-Referer", "http://45.134.12.54")
+                    .addHeader("X-Title", "Zhivoy App")
+                    .build()
+                chain.proceed(requestWithHeaders)
+            }
             .addInterceptor(loggingInterceptor)
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .build()
-            
+        
         return Retrofit.Builder()
             .baseUrl(OPEN_ROUTER_BASE_URL)
             .client(okHttpClient)

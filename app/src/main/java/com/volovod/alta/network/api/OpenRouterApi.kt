@@ -9,6 +9,8 @@ import retrofit2.http.POST
 data class OpenRouterRequest(
     val model: String,
     val messages: List<Message>,
+    val max_tokens: Int? = null,
+    val temperature: Float? = null,
     val response_format: ResponseFormat? = null
 )
 
@@ -37,7 +39,18 @@ data class ResponseFormat(
 
 @Serializable
 data class OpenRouterResponse(
-    val choices: List<Choice>
+    val choices: List<Choice>,
+    val id: String? = null,
+    val created: Long? = null,
+    val model: String? = null,
+    val usage: Usage? = null
+)
+
+@Serializable
+data class Usage(
+    val prompt_tokens: Int? = null,
+    val completion_tokens: Int? = null,
+    val total_tokens: Int? = null
 )
 
 @Serializable
