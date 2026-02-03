@@ -4,13 +4,9 @@ package com.volovod.alta.config
  * Настройки AI ВНУТРИ проекта.
  *
  * Важно:
- * - API ключ НЕ хранится в БД и НЕ хранится в этом файле.
- * - API ключ задаётся через Gradle BuildConfig (см. `app/build.gradle.kts`).
+ * - API ключ GigaChat хранится на бэкенде (админка) и НЕ хранится в приложении.
  */
 object AiConfig {
-    /** OpenRouter model id (Qwen2.5). */
-    const val BASE_URL: String = "https://openrouter.ai/api/v1/"
-    const val MODEL: String = "qwen/qwen-2.5-vl-7b-instruct:free"
 
     /**
      * Текст первого сообщения в чате (UI), чтобы диалог начинался вопросом.

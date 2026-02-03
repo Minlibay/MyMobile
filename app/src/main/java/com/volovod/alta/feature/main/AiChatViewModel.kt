@@ -47,8 +47,8 @@ class AiChatViewModel(
         viewModelScope.launch {
             _isConfiguring.value = true
             val settings = repository.adminSettingsRepository.getSettings()
-            _isConfigured.value = settings.isSuccess && 
-                settings.getOrNull()?.openrouter_api_key?.isNotBlank() == true
+            _isConfigured.value = settings.isSuccess &&
+                settings.getOrNull()?.gigachat_auth_key?.isNotBlank() == true
             _isConfiguring.value = false
         }
     }
@@ -86,8 +86,8 @@ class AiChatViewModel(
         viewModelScope.launch {
             _isConfiguring.value = true
             val settings = repository.adminSettingsRepository.getSettings()
-            _isConfigured.value = settings.isSuccess && 
-                settings.getOrNull()?.openrouter_api_key?.isNotBlank() == true
+            _isConfigured.value = settings.isSuccess &&
+                settings.getOrNull()?.gigachat_auth_key?.isNotBlank() == true
             _isConfiguring.value = false
         }
     }

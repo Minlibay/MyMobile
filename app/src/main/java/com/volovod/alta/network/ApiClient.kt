@@ -3,7 +3,7 @@ package com.volovod.alta.network
 import com.volovod.alta.data.session.SessionStore
 import com.volovod.alta.network.api.AdsApi
 import com.volovod.alta.network.api.AuthApi
-import com.volovod.alta.network.api.OpenRouterApi
+import com.volovod.alta.network.api.AiChatApi
 import com.volovod.alta.network.api.AdminSettingsApi
 import com.volovod.alta.network.api.FamilyApi
 import com.volovod.alta.network.api.FoodApi
@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit
 
 object ApiClient {
     private const val BASE_URL = "http://45.134.12.54/"
-    private const val OPEN_ROUTER_BASE_URL = "https://openrouter.ai/api/v1/"
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -233,31 +232,14 @@ object ApiClient {
             .create(AdminSettingsApi::class.java)
     }
 
-    fun createOpenRouterApi(): OpenRouterApi {
-        val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        }
-        val okHttpClient = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                val originalRequest = chain.request()
-                val requestWithHeaders = originalRequest.newBuilder()
-                    .addHeader("Referer", "http://45.134.12.54")
-                    .addHeader("HTTP-Referer", "http://45.134.12.54")
-                    .addHeader("X-Title", "Zhivoy App")
-                    .build()
-                chain.proceed(requestWithHeaders)
-            }
-            .addInterceptor(loggingInterceptor)
-            .connectTimeout(60, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .build()
-        
+    fun createAiChatApi(sessionStore: SessionStore): AiChatApi {
+        val okHttpClient = createOkHttpClient(sessionStore)
         return Retrofit.Builder()
-            .baseUrl(OPEN_ROUTER_BASE_URL)
+            .baseUrl(BASE_URL)
             .client(okHttpClient)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
-            .create(OpenRouterApi::class.java)
+            .create(AiChatApi::class.java)
     }
 
     private fun createOkHttpClient(sessionStore: SessionStore): OkHttpClient {

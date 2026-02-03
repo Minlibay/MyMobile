@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
@@ -26,6 +27,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import com.volovod.alta.LocalAppDatabase
 import com.volovod.alta.LocalSessionStore
+import com.volovod.alta.data.repository.AdminSettingsRepository
 import com.volovod.alta.data.entities.TrainingEntity
 import com.volovod.alta.data.entities.TrainingPlanEntity
 import com.volovod.alta.data.entities.TrainingTemplateEntity
@@ -41,6 +43,9 @@ import com.volovod.alta.ui.components.ModernOutlinedButton
 import com.volovod.alta.ui.components.ModernCard
 import com.volovod.alta.ui.components.SkeletonCard
 import com.volovod.alta.ui.components.SkeletonStatCard
+import com.volovod.alta.network.ApiClient
+import com.volovod.alta.network.api.AiChatMessage
+import com.volovod.alta.network.api.AiChatRequest
 import com.volovod.alta.util.DateTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -60,6 +65,7 @@ fun TrainingsScreen() {
     val haptic = LocalHapticFeedback.current
 
     val trainingRemoteRepository = remember(sessionStore) { TrainingRemoteRepository(sessionStore) }
+    val adminSettingsRepository = remember { AdminSettingsRepository() }
 
     val xpRemoteRepository = remember(sessionStore) { XpRemoteRepository(sessionStore) }
 
@@ -70,6 +76,107 @@ fun TrainingsScreen() {
     val weekDays = remember {
         val startOfWeek = LocalDate.now().with(DayOfWeek.MONDAY)
         (0..6).map { startOfWeek.plusDays(it.toLong()).toEpochDay().toInt() }
+    }
+
+    // Dialogs
+    var showAddTemplate by remember { mutableStateOf(false) }
+    var showQuickAdd by remember { mutableStateOf(false) }
+    var showPlank by remember { mutableStateOf(false) }
+    var showAiDialog by remember { mutableStateOf(false) }
+    var aiResult by remember { mutableStateOf<String?>(null) }
+    var aiLoading by remember { mutableStateOf(false) }
+    var aiError by remember { mutableStateOf<String?>(null) }
+    var aiMode by remember { mutableStateOf("today") } // today | week
+    var showSaveAiTemplateDialog by remember { mutableStateOf(false) }
+
+    if (showSaveAiTemplateDialog && aiResult != null) {
+        SaveAiTemplateDialog(
+            result = aiResult ?: "",
+            mode = aiMode,
+            onDismiss = { showSaveAiTemplateDialog = false },
+            onSave = { title, duration, calories, tags ->
+                if (userId == null) return@SaveAiTemplateDialog
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        db.trainingTemplateDao().insert(
+                            TrainingTemplateEntity(
+                                userId = userId,
+                                title = title,
+                                category = "AI тренер",
+                                tagsCsv = tags,
+                                defaultDurationMinutes = duration,
+                                defaultCaloriesBurned = calories,
+                                createdAtEpochMs = System.currentTimeMillis()
+                            )
+                        )
+                    }
+                }
+                showSaveAiTemplateDialog = false
+            }
+        )
+    }
+
+    if (showAiDialog) {
+        AiTrainingDialog(
+            mode = aiMode,
+            onModeChange = { aiMode = it },
+            loading = aiLoading,
+            error = aiError,
+            result = aiResult,
+            onDismiss = { showAiDialog = false },
+            onGenerate = {
+                if (userId == null) return@AiTrainingDialog
+                scope.launch {
+                    aiLoading = true
+                    aiError = null
+                    try {
+                        val profile = withContext(Dispatchers.IO) { db.profileDao().getByUserId(userId) }
+                        val weight = profile?.weightKg ?: 70.0
+                        val height = profile?.heightCm ?: 170
+                        val sex = profile?.sex ?: "unknown"
+                        val age = profile?.age ?: 30
+                        val fitnessGoal = "поддерживать форму" // нет явного поля цели, фиксируем формулировку
+
+                        val settingsRes = adminSettingsRepository.getSettings()
+                        val settings = settingsRes.getOrNull()
+                        val authKey = settings?.gigachat_auth_key
+                        if (authKey.isNullOrBlank()) {
+                            aiError = "GigaChat не настроен"
+                            aiLoading = false
+                            return@launch
+                        }
+
+                        val promptMode = if (aiMode == "week") "Составь план тренировок на неделю" else "Составь тренировку на сегодня"
+                        val system = "Ты — персональный тренер. Давай конкретный список упражнений с повторениями/временем. Формат: буллеты без лишнего текста. Учитывай опыт новичка и безопасность."
+                        val userPrompt = "${promptMode}. Параметры: вес ${weight} кг, рост ${height} см, возраст ${age}, пол ${sex}, цель: ${fitnessGoal}. Верни 5-7 упражнений, укажи время или повторы, короткие подсказки по технике безопасности."
+
+                        val aiChatApi = ApiClient.createAiChatApi(sessionStore)
+                        val request = AiChatRequest(
+                            messages = listOf(
+                                AiChatMessage(role = "system", content = system),
+                                AiChatMessage(role = "user", content = userPrompt)
+                            ),
+                            max_tokens = 800,
+                            temperature = 0.5f
+                        )
+                        val response = withContext(Dispatchers.IO) {
+                            aiChatApi.chat(request)
+                        }
+                        val content = response.content
+                        if (content.isNullOrBlank()) {
+                            aiError = "Пустой ответ ИИ"
+                        } else {
+                            aiResult = content
+                            showSaveAiTemplateDialog = true
+                        }
+                    } catch (e: Exception) {
+                        aiError = e.message ?: "Ошибка ИИ"
+                    } finally {
+                        aiLoading = false
+                    }
+                }
+            }
+        )
     }
 
     // Data for selected day
@@ -93,11 +200,6 @@ fun TrainingsScreen() {
     val weekTrainings by (if (userId != null) db.trainingDao().observeFrom(userId, monday) else kotlinx.coroutines.flow.flowOf(emptyList()))
         .collectAsState(initial = emptyList())
     val completedThisWeek = weekTrainings.filter { it.dateEpochDay in weekDays }.size
-
-    // Dialogs
-    var showAddTemplate by remember { mutableStateOf(false) }
-    var showQuickAdd by remember { mutableStateOf(false) }
-    var showPlank by remember { mutableStateOf(false) }
 
     var isLoading by remember(userId) { mutableStateOf(true) }
     LaunchedEffect(userId) {
@@ -251,6 +353,38 @@ fun TrainingsScreen() {
             fontWeight = FontWeight.Bold
         )
 
+        // AI Trainer Highlight
+        ModernCard {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("AI тренер", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                }
+                Text(
+                    text = "Персональная тренировка с учетом веса, возраста и цели. Выберите режим и получите список упражнений.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ModernButton(
+                        text = "Сегодня",
+                        onClick = {
+                            aiMode = "today"
+                            showAiDialog = true
+                        }
+                    )
+                    ModernOutlinedButton(
+                        text = "Неделя",
+                        onClick = {
+                            aiMode = "week"
+                            showAiDialog = true
+                        }
+                    )
+                }
+            }
+        }
+
         // Weekly Goal Progress
         if (isLoading) {
             SkeletonCard(modifier = Modifier.fillMaxWidth())
@@ -302,6 +436,9 @@ fun TrainingsScreen() {
                         Icon(Icons.Default.Add, contentDescription = "Edit Goal")
                     }
                 }
+            }
+            IconButton(onClick = { showAiDialog = true }) {
+                Icon(Icons.Default.Chat, contentDescription = "AI тренер")
             }
         }
 
@@ -473,6 +610,11 @@ fun TrainingsScreen() {
             onClick = { showPlank = true }
         )
 
+        ModernOutlinedButton(
+            text = "Тренировка с AI",
+            onClick = { showAiDialog = true }
+        )
+
         // Templates Section
         Spacer(modifier = Modifier.height(8.dp))
         Row(
@@ -547,4 +689,135 @@ fun TrainingsScreen() {
         
         Spacer(modifier = Modifier.height(40.dp))
     }
+}
+
+@Composable
+private fun AiTrainingDialog(
+    mode: String,
+    onModeChange: (String) -> Unit,
+    loading: Boolean,
+    error: String?,
+    result: String?,
+    onDismiss: () -> Unit,
+    onGenerate: () -> Unit,
+) {
+    val scrollState = rememberScrollState()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("AI тренер") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Что нужно?", style = MaterialTheme.typography.bodyMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = mode == "today",
+                        onClick = { onModeChange("today") },
+                        label = { Text("Сегодня") }
+                    )
+                    FilterChip(
+                        selected = mode == "week",
+                        onClick = { onModeChange("week") },
+                        label = { Text("Неделя") }
+                    )
+                }
+
+                if (loading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+
+                if (!error.isNullOrBlank()) {
+                    Text(text = error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+
+                if (!result.isNullOrBlank()) {
+                    Text("Рекомендация:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 80.dp, max = 240.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+                            .verticalScroll(scrollState)
+                            .padding(12.dp)
+                    ) {
+                        Text(result, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onGenerate, enabled = !loading) {
+                Text(if (loading) "Генерируем..." else "Сгенерировать")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !loading) { Text("Закрыть") }
+        }
+    )
+}
+
+@Composable
+private fun SaveAiTemplateDialog(
+    result: String,
+    mode: String,
+    onDismiss: () -> Unit,
+    onSave: (title: String, duration: Int, calories: Int, tags: String) -> Unit,
+) {
+    val defaultTitle = if (mode == "week") "AI план на неделю" else "AI тренировка"
+    var title by remember { mutableStateOf(defaultTitle) }
+    var durationText by remember { mutableStateOf("45") }
+    var caloriesText by remember { mutableStateOf("300") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Сохранить в шаблоны?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "AI предложил тренировку. Сохранить как шаблон?",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Название") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = durationText,
+                        onValueChange = { durationText = it.filter(Char::isDigit) },
+                        label = { Text("Мин") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = caloriesText,
+                        onValueChange = { caloriesText = it.filter(Char::isDigit) },
+                        label = { Text("Ккал") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Text(
+                    text = result.take(300),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val duration = durationText.toIntOrNull() ?: 0
+                val calories = caloriesText.toIntOrNull() ?: 0
+                val tags = "ai,training"
+                onSave(title.ifBlank { defaultTitle }, duration, calories, tags)
+            }) {
+                Text("Сохранить")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Не нужно") }
+        }
+    )
 }

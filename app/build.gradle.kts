@@ -16,23 +16,20 @@ android {
         applicationId = "com.volovod.alta"
         minSdk = 28
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // OpenRouter API key:
-        // 1) gradle.properties / local.properties: OPENROUTER_API_KEY=...
-        // 2) или переменная окружения: OPENROUTER_API_KEY
-        val openRouterApiKey: String =
-            (project.findProperty("OPENROUTER_API_KEY") as String?)
-                ?: System.getenv("OPENROUTER_API_KEY")
-                ?: ""
+        val myTrackerAppId: String =
+            (project.findProperty("MYTRACKER_APP_ID") as String?)
+                ?: System.getenv("MYTRACKER_APP_ID")
+                ?: "40170218579030254814"
 
         buildConfigField(
             "String",
-            "OPENROUTER_API_KEY",
-            "\"${openRouterApiKey}\""
+            "MYTRACKER_APP_ID",
+            "\"${myTrackerAppId}\""
         )
     }
 
@@ -82,6 +79,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation("androidx.compose.material:material")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("com.my.tracker:mytracker-sdk:3.1.3")
 
     // Navigation + DataStore
     implementation(libs.androidx.navigation.compose)

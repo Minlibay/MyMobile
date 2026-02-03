@@ -22,6 +22,7 @@
             <div class="navbar-nav ms-auto">
                 <a class="nav-link" href="/admin">Главная</a>
                 <a class="nav-link active" href="/admin/settings">Настройки</a>
+                <a class="nav-link" href="/admin/gigachat">GigaChat</a>
                 <a class="nav-link" href="/admin/logout">Выйти</a>
             </div>
         </div>
@@ -37,9 +38,6 @@
                     </li>
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="news-tab" data-bs-toggle="tab" data-bs-target="#news" type="button" role="tab">Новости</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="openrouter-tab" data-bs-toggle="tab" data-bs-target="#openrouter" type="button" role="tab">OpenRouter</button>
                     </li>
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="appodeal-tab" data-bs-toggle="tab" data-bs-target="#appodeal" type="button" role="tab">Appodeal</button>
@@ -78,34 +76,6 @@
                             </div>
                             <div class="card-body">
                                 <div id="newsList"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- OpenRouter -->
-                    <div class="tab-pane fade" id="openrouter" role="tabpanel">
-                        <div class="card mt-3">
-                            <div class="card-header">
-                                <h5 class="mb-0">Настройки OpenRouter API</h5>
-                            </div>
-                            <div class="card-body">
-                                <form id="openrouterForm">
-                                    <div class="mb-3">
-                                        <label for="openrouter_api_key" class="form-label">API Key</label>
-                                        <textarea class="form-control" id="openrouter_api_key" rows="3" placeholder="sk-or-v1-..."></textarea>
-                                        <div class="form-text">Введите ваш OpenRouter API ключ. Оставьте пустым, если не используется.</div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="openrouter_model" class="form-label">Модель</label>
-                                        <input type="text" class="form-control" id="openrouter_model" placeholder="anthropic/claude-3-haiku">
-                                        <div class="form-text">Название модели для использования в OpenRouter (например: anthropic/claude-3-haiku)</div>
-                                    </div>
-                                    <div class="d-flex justify-content-between">
-                                        <button type="submit" class="btn btn-primary">Сохранить OpenRouter</button>
-                                        <button type="button" class="btn btn-secondary" onclick="testOpenRouter()">Проверить соединение</button>
-                                    </div>
-                                </form>
-                                <div id="openrouterResult" class="mt-3"></div>
                             </div>
                         </div>
                     </div>
@@ -306,53 +276,6 @@
             }
         }
 
-        // OpenRouter
-        async function loadOpenRouter() {
-            try {
-                const response = await fetch('/admin/api/settings');
-                const data = await response.json();
-                document.getElementById('openrouter_api_key').value = data.openrouter_api_key || '';
-                document.getElementById('openrouter_model').value = data.openrouter_model || '';
-            } catch (e) {
-                showResult('openrouterResult', 'Ошибка загрузки', 'danger');
-            }
-        }
-        document.getElementById('openrouterForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const apiKey = document.getElementById('openrouter_api_key').value.trim();
-            const model = document.getElementById('openrouter_model').value.trim();
-            try {
-                const r = await fetch('/admin/api/settings', {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ openrouter_api_key: apiKey || null, openrouter_model: model || null }),
-                });
-                if (r.ok) showResult('openrouterResult', 'Сохранено', 'success');
-                else showResult('openrouterResult', 'Ошибка', 'danger');
-            } catch (e) {
-                showResult('openrouterResult', 'Ошибка', 'danger');
-            }
-        });
-        async function testOpenRouter() {
-            const apiKey = document.getElementById('openrouter_api_key').value.trim();
-            const model = document.getElementById('openrouter_model').value.trim();
-            if (!apiKey || !model) {
-                showResult('openrouterResult', 'Заполните API Key и модель', 'warning');
-                return;
-            }
-            try {
-                const r = await fetch('/admin/api/settings', {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ openrouter_api_key: apiKey, openrouter_model: model }),
-                });
-                if (r.ok) showResult('openrouterResult', 'Сохранено. Соединение настроено.', 'success');
-                else showResult('openrouterResult', 'Ошибка', 'danger');
-            } catch (e) {
-                showResult('openrouterResult', 'Ошибка', 'danger');
-            }
-        }
-
         // Appodeal
         async function loadAppodeal() {
             try {
@@ -403,7 +326,6 @@
         document.addEventListener('shown.bs.tab', function (e) {
             if (e.target.id === 'privacy-tab') loadPrivacy();
             if (e.target.id === 'news-tab') loadNews();
-            if (e.target.id === 'openrouter-tab') loadOpenRouter();
             if (e.target.id === 'appodeal-tab') loadAppodeal();
         });
 

@@ -69,10 +69,6 @@ import com.volovod.alta.data.repository.SyncRepository
 import com.volovod.alta.data.repository.WaterRepository
 import com.volovod.alta.data.repository.WeightRemoteRepository
 import com.volovod.alta.network.ApiClient
-import com.volovod.alta.network.api.OpenRouterApi
-import retrofit2.Retrofit
-import retrofit2.converter.kotlinx.serialization.asConverterFactory
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import kotlinx.serialization.json.Json
@@ -358,12 +354,12 @@ fun HomeScreen() {
     var showAddBook by remember { mutableStateOf(false) }
     var showAiChat by remember { mutableStateOf(false) }
 
-    val openRouterApi = remember { ApiClient.createOpenRouterApi() }
+    val aiChatApi = remember(sessionStore) { ApiClient.createAiChatApi(sessionStore) }
 
     val aiChatViewModel = remember(userId) {
         if (userId != null) {
             AiChatViewModel(
-                AiChatRepository(openRouterApi, db.foodDao(), foodRemoteRepository, adminSettingsRepository),
+                AiChatRepository(aiChatApi, db.foodDao(), foodRemoteRepository, adminSettingsRepository),
                 userId,
                 adsRepository,
             )
@@ -580,8 +576,8 @@ fun HomeScreen() {
                     title = { androidx.compose.material3.Text("API ключ не настроен") },
                     text = {
                         androidx.compose.material3.Text(
-                            "Для использования ИИ помощника нужно настроить OpenRouter API ключ в админке: " +
-                                "http://45.134.12.54/admin/settings"
+                            "Для использования ИИ помощника нужно настроить GigaChat в админке: " +
+                                "http://45.134.12.54/admin/gigachat"
                         )
                     }
                 )

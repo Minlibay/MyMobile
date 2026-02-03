@@ -2,6 +2,8 @@ package com.volovod.alta.feature.main
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -11,6 +13,7 @@ import androidx.compose.material.icons.filled.FamilyRestroom
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
@@ -38,6 +41,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun FamilyScreen() {
     val sessionStore = LocalSessionStore.current
@@ -99,6 +103,7 @@ fun FamilyScreen() {
         }
     )
 
+    val scrollState = rememberScrollState()
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var showAddMemberDialog by remember { mutableStateOf(false) }
@@ -111,6 +116,7 @@ fun FamilyScreen() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(scrollState)
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
@@ -238,11 +244,8 @@ fun FamilyScreen() {
                 }
             }
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(members) { member ->
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                members.forEach { member ->
                     FamilyMemberCard(
                         member = member,
                         isAdmin = member.user_id == family!!.admin_user_id,

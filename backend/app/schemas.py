@@ -288,6 +288,9 @@ class SyncBatchResponse(BaseModel):
 
 
 class AdminSettingsRequest(BaseModel):
+    gigachat_client_id: str | None = Field(default=None, max_length=128)
+    gigachat_auth_key: str | None = Field(default=None, max_length=512)
+    gigachat_scope: str | None = Field(default=None, max_length=64)
     openrouter_api_key: str | None = Field(default=None, max_length=256)
     openrouter_model: str | None = Field(default=None, max_length=128)
     appodeal_app_key: str | None = Field(default=None, max_length=256)
@@ -304,6 +307,9 @@ class AdminSettingsRequest(BaseModel):
 
 
 class AdminSettingsResponse(BaseModel):
+    gigachat_client_id: str | None = None
+    gigachat_auth_key: str | None = None
+    gigachat_scope: str | None = None
     openrouter_api_key: str | None = None
     openrouter_model: str | None = None
     appodeal_app_key: str | None = None
@@ -320,6 +326,23 @@ class AdminSettingsResponse(BaseModel):
     announcement_button_url: str | None = None
     announcement_updated_at: str | None = None
     updated_at: str
+
+
+class AiChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class AiChatRequest(BaseModel):
+    messages: List[AiChatMessage]
+    image_base64: str | None = None
+    max_tokens: int | None = None
+    temperature: float | None = None
+    model: str | None = None
+
+
+class AiChatResponse(BaseModel):
+    content: str
 
 
 class PrivacyPolicyResponse(BaseModel):

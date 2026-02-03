@@ -19,6 +19,9 @@ class AdminSettingsRepository {
         }
 
     suspend fun updateSettings(
+        gigachatClientId: String? = null,
+        gigachatAuthKey: String? = null,
+        gigachatScope: String? = null,
         apiKey: String? = null,
         model: String? = null,
     ): Result<AdminSettingsResponseDto> =
@@ -27,6 +30,9 @@ class AdminSettingsRepository {
                 Result.success(
                     api.updateAdminSettings(
                         AdminSettingsRequestDto(
+                            gigachat_client_id = gigachatClientId,
+                            gigachat_auth_key = gigachatAuthKey,
+                            gigachat_scope = gigachatScope,
                             openrouter_api_key = apiKey,
                             openrouter_model = model,
                         )

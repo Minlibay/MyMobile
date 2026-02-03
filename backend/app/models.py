@@ -248,6 +248,9 @@ class AdminSettings(Base):
     __tablename__ = "admin_settings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    gigachat_client_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    gigachat_auth_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    gigachat_scope: Mapped[str | None] = mapped_column(String(64), nullable=True)
     openrouter_api_key: Mapped[str | None] = mapped_column(String(256), nullable=True)
     openrouter_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     appodeal_app_key: Mapped[str | None] = mapped_column(String(256), nullable=True)

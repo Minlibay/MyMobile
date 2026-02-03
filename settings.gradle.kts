@@ -12,6 +12,8 @@ pluginManagement {
         maven { url = uri("https://jitpack.io") }
         maven { url = uri("https://artifactory.appodeal.com/appodeal-public/") }
         maven { url = uri("https://artifact.bytedance.com/repository/pangle") }
+        maven { url = uri("https://maven.mytracker.ru") }
+        maven { url = uri("https://maven.mytracker.ru/repository/mytracker-android-sdk/") }
     }
 }
 dependencyResolutionManagement {
@@ -22,6 +24,8 @@ dependencyResolutionManagement {
         maven { url = uri("https://jitpack.io") }
         maven { url = uri("https://artifactory.appodeal.com/appodeal-public/") }
         maven { url = uri("https://artifact.bytedance.com/repository/pangle") }
+        maven { url = uri("https://maven.mytracker.ru") }
+        maven { url = uri("https://maven.mytracker.ru/repository/mytracker-android-sdk/") }
     }
 }
 

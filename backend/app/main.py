@@ -1,10 +1,15 @@
+import asyncio
+import base64
 import datetime as dt
+import time
+import uuid
 from typing import List
 
 from fastapi import Depends, FastAPI, Form, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.templating import Jinja2Templates
+import httpx
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import delete, select, update, func
@@ -55,6 +60,8 @@ from app.schemas import (
     SyncBatchResponse,
     AdminSettingsRequest,
     AdminSettingsResponse,
+    AiChatRequest,
+    AiChatResponse,
     AnnouncementReadResponse,
     AnnouncementResponse,
     AnnouncementRequest,
@@ -77,6 +84,14 @@ from app.settings import settings
 
 
 app = FastAPI(title="Alta API")
+
+GIGACHAT_OAUTH_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+GIGACHAT_API_URL = "https://gigachat.devices.sberbank.ru/api/v1"
+
+gigachat_request_lock = asyncio.Lock()
+gigachat_token_lock = asyncio.Lock()
+gigachat_access_token: str | None = None
+gigachat_token_expires_at_ms: int = 0
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -111,6 +126,85 @@ def week_bounds(target: dt.date | None = None) -> tuple[int, int]:
     end_date = start_date + dt.timedelta(days=6)
     epoch = dt.date(1970, 1, 1)
     return (start_date - epoch).days, (end_date - epoch).days
+
+
+def decode_base64_image(payload: str) -> bytes:
+    if "," in payload and "base64" in payload:
+        payload = payload.split(",", 1)[1]
+    return base64.b64decode(payload)
+
+
+async def get_gigachat_access_token(settings_row: AdminSettings) -> str:
+    if not settings_row.gigachat_auth_key:
+        raise HTTPException(status_code=400, detail="GigaChat auth key not configured")
+
+    scope = settings_row.gigachat_scope or "GIGACHAT_API_PERS"
+    now_ms = int(time.time() * 1000)
+    async with gigachat_token_lock:
+        global gigachat_access_token, gigachat_token_expires_at_ms
+        if gigachat_access_token and gigachat_token_expires_at_ms - 60_000 > now_ms:
+            return gigachat_access_token
+
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "RqUID": str(uuid.uuid4()),
+            "Authorization": f"Basic {settings_row.gigachat_auth_key}",
+        }
+        data = {"scope": scope}
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(GIGACHAT_OAUTH_URL, headers=headers, data=data)
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+
+        payload = response.json()
+        token = payload.get("access_token")
+        expires_at = payload.get("expires_at")
+        if not token:
+            raise HTTPException(status_code=500, detail="Failed to obtain GigaChat access token")
+
+        gigachat_access_token = token
+        gigachat_token_expires_at_ms = int(expires_at) if expires_at else now_ms + 25 * 60 * 1000
+        return token
+
+
+async def gigachat_upload_image(token: str, content: bytes, filename: str) -> str:
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {token}",
+    }
+    files = {"file": (filename, content, "image/jpeg")}
+    data = {"purpose": "general"}
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(f"{GIGACHAT_API_URL}/files", headers=headers, files=files, data=data)
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    payload = response.json()
+    file_id = payload.get("id")
+    if not file_id:
+        raise HTTPException(status_code=500, detail="GigaChat file upload failed")
+    return file_id
+
+
+async def gigachat_chat_completion(token: str, payload: dict) -> str:
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}",
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(f"{GIGACHAT_API_URL}/chat/completions", headers=headers, json=payload)
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    data = response.json()
+    choices = data.get("choices") or []
+    if not choices:
+        raise HTTPException(status_code=500, detail="Empty GigaChat response")
+    message = choices[0].get("message") or {}
+    content = message.get("content")
+    if not content:
+        raise HTTPException(status_code=500, detail="GigaChat response missing content")
+    return content
 
 
 def require_family_and_members(user: User, db: Session) -> tuple[Family, list[FamilyMember]]:
@@ -323,6 +417,22 @@ def admin_settings_page(request: Request, db: Session = Depends(get_db)):
         {
             "request": request,
             "title": "Admin • Settings",
+            "admin_user": admin_user,
+        },
+    )
+
+
+@app.get("/admin/gigachat", response_class=HTMLResponse)
+def admin_gigachat_page(request: Request, db: Session = Depends(get_db)):
+    guard = admin_guard(request, db)
+    if isinstance(guard, RedirectResponse):
+        return guard
+    admin_user = guard
+    return templates.TemplateResponse(
+        "admin_gigachat.html",
+        {
+            "request": request,
+            "title": "Admin • GigaChat",
             "admin_user": admin_user,
         },
     )
@@ -2132,6 +2242,9 @@ def get_admin_settings(
     if row is None:
         # Create default settings
         row = AdminSettings(
+            gigachat_client_id=None,
+            gigachat_auth_key=None,
+            gigachat_scope=None,
             openrouter_api_key=None,
             openrouter_model=None,
             appodeal_app_key=None,
@@ -2154,6 +2267,9 @@ def get_admin_settings(
         db.refresh(row)
     
     return AdminSettingsResponse(
+        gigachat_client_id=row.gigachat_client_id,
+        gigachat_auth_key=row.gigachat_auth_key,
+        gigachat_scope=row.gigachat_scope,
         openrouter_api_key=row.openrouter_api_key,
         openrouter_model=row.openrouter_model,
         appodeal_app_key=row.appodeal_app_key,
@@ -2173,15 +2289,55 @@ def get_admin_settings(
     )
 
 
+@app.post("/ai/chat", response_model=AiChatResponse)
+async def ai_chat(req: AiChatRequest, user: User = Depends(require_user), db: Session = Depends(get_db)) -> AiChatResponse:
+    settings_row = db.execute(select(AdminSettings)).scalar_one_or_none()
+    if settings_row is None or not settings_row.gigachat_auth_key:
+        raise HTTPException(status_code=400, detail="GigaChat settings not configured")
+
+    async with gigachat_request_lock:
+        token = await get_gigachat_access_token(settings_row)
+
+        attachments: list[str] = []
+        if req.image_base64:
+            image_bytes = decode_base64_image(req.image_base64)
+            file_id = await gigachat_upload_image(token, image_bytes, f"food-{uuid.uuid4()}.jpg")
+            attachments.append(file_id)
+
+        messages = []
+        for msg in req.messages:
+            message: dict = {"role": msg.role, "content": msg.content}
+            if attachments and msg.role == "user":
+                message["attachments"] = attachments
+                attachments = []
+            messages.append(message)
+
+        payload = {
+            "model": req.model or "GigaChat",
+            "messages": messages,
+        }
+        if req.max_tokens is not None:
+            payload["max_tokens"] = req.max_tokens
+        if req.temperature is not None:
+            payload["temperature"] = req.temperature
+
+        content = await gigachat_chat_completion(token, payload)
+        return AiChatResponse(content=content)
+
+
 @app.put("/admin/api/settings", response_model=AdminSettingsResponse)
 def update_admin_settings(
     req: AdminSettingsRequest,
     admin_user: AdminUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> AdminSettingsResponse:
+    global gigachat_access_token, gigachat_token_expires_at_ms
     row = db.execute(select(AdminSettings)).scalar_one_or_none()
     if row is None:
         row = AdminSettings(
+            gigachat_client_id=req.gigachat_client_id,
+            gigachat_auth_key=req.gigachat_auth_key,
+            gigachat_scope=req.gigachat_scope,
             openrouter_api_key=req.openrouter_api_key,
             openrouter_model=req.openrouter_model,
             appodeal_app_key=req.appodeal_app_key,
@@ -2201,9 +2357,22 @@ def update_admin_settings(
         )
         db.add(row)
     else:
-        row.openrouter_api_key = req.openrouter_api_key
-        row.openrouter_model = req.openrouter_model
-        row.appodeal_app_key = req.appodeal_app_key
+        if req.gigachat_client_id is not None:
+            row.gigachat_client_id = req.gigachat_client_id
+        if req.gigachat_auth_key is not None:
+            row.gigachat_auth_key = req.gigachat_auth_key
+            gigachat_access_token = None
+            gigachat_token_expires_at_ms = 0
+        if req.gigachat_scope is not None:
+            row.gigachat_scope = req.gigachat_scope
+            gigachat_access_token = None
+            gigachat_token_expires_at_ms = 0
+        if req.openrouter_api_key is not None:
+            row.openrouter_api_key = req.openrouter_api_key
+        if req.openrouter_model is not None:
+            row.openrouter_model = req.openrouter_model
+        if req.appodeal_app_key is not None:
+            row.appodeal_app_key = req.appodeal_app_key
         if req.appodeal_enabled is not None:
             row.appodeal_enabled = req.appodeal_enabled
         if req.appodeal_banner_enabled is not None:
@@ -2240,6 +2409,9 @@ def update_admin_settings(
     db.commit()
     db.refresh(row)
     return AdminSettingsResponse(
+        gigachat_client_id=row.gigachat_client_id,
+        gigachat_auth_key=row.gigachat_auth_key,
+        gigachat_scope=row.gigachat_scope,
         openrouter_api_key=row.openrouter_api_key,
         openrouter_model=row.openrouter_model,
         appodeal_app_key=row.appodeal_app_key,

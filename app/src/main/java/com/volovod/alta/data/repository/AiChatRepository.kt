@@ -3,11 +3,9 @@ package com.volovod.alta.data.repository
 import android.util.Log
 import com.volovod.alta.data.dao.FoodDao
 import com.volovod.alta.data.entities.FoodEntryEntity
-import com.volovod.alta.network.api.ContentPart
-import com.volovod.alta.network.api.ImageUrl
-import com.volovod.alta.network.api.Message
-import com.volovod.alta.network.api.OpenRouterApi
-import com.volovod.alta.network.api.OpenRouterRequest
+import com.volovod.alta.network.api.AiChatApi
+import com.volovod.alta.network.api.AiChatMessage
+import com.volovod.alta.network.api.AiChatRequest
 import com.volovod.alta.config.AiConfig
 import com.volovod.alta.util.DateTime
 import kotlinx.serialization.Serializable
@@ -21,68 +19,58 @@ data class FoodAiResponse(
 )
 
 class AiChatRepository(
-    private val openRouterApi: OpenRouterApi,
+    private val aiChatApi: AiChatApi,
     private val foodDao: FoodDao,
     private val foodRemoteRepository: FoodRemoteRepository,
     val adminSettingsRepository: AdminSettingsRepository,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    private suspend fun getAiConfig(): Pair<String, String> {
+    private suspend fun getAiConfig(): String {
         val settings = adminSettingsRepository.getSettings()
         return if (settings.isSuccess) {
-            val apiKey = settings.getOrNull()?.openrouter_api_key ?: ""
-            val model = settings.getOrNull()?.openrouter_model ?: "anthropic/claude-3-haiku"
-            android.util.Log.d("AiChatRepository", "API config: apiKey=${apiKey.take(10)}..., model=$model")
-            Pair(apiKey, model)
+            val authKey = settings.getOrNull()?.gigachat_auth_key ?: ""
+            android.util.Log.d("AiChatRepository", "API config: authKey=${authKey.take(10)}...")
+            authKey
         } else {
             android.util.Log.e("AiChatRepository", "Failed to get settings: ${settings.exceptionOrNull()?.message}")
-            Pair("", "anthropic/claude-3-haiku") // Fallback
+            ""
         }
     }
 
     suspend fun processFoodInput(userId: Long, text: String?, imageBase64: String?): Result<FoodAiResponse> {
-        val (apiKey, model) = getAiConfig()
-        if (apiKey.isEmpty()) {
-            return Result.failure(Exception("OpenRouter API key not configured"))
+        val authKey = getAiConfig()
+        if (authKey.isEmpty()) {
+            return Result.failure(Exception("GigaChat auth key not configured"))
         }
 
         val systemPrompt = AiConfig.SYSTEM_PROMPT
 
-        val contentParts = mutableListOf<ContentPart>()
-        text?.let { contentParts.add(ContentPart(type = "text", text = it)) }
-        imageBase64?.let { 
-            contentParts.add(ContentPart(type = "image_url", image_url = ImageUrl(url = "data:image/jpeg;base64,$it")))
-        }
+        val userContent = listOfNotNull(text?.takeIf { it.isNotBlank() }, if (imageBase64 != null) "[image]" else null)
+            .joinToString(" ")
+            .ifBlank { "Фото еды" }
 
-        val messages = listOf(
-            Message(role = "system", content = listOf(ContentPart(type = "text", text = systemPrompt))),
-            Message(role = "user", content = contentParts)
-        )
-
-        val request = OpenRouterRequest(
-            model = model,
-            messages = messages,
+        val request = AiChatRequest(
+            messages = listOf(
+                AiChatMessage(role = "system", content = systemPrompt),
+                AiChatMessage(role = "user", content = userContent)
+            ),
+            image_base64 = imageBase64,
             max_tokens = 1000,
             temperature = 0.3f
         )
 
         return try {
-            Log.d("AiChatRepository", "Sending AI request: model=$model, hasText=${!text.isNullOrBlank()}, hasImage=${imageBase64 != null}")
+            Log.d("AiChatRepository", "Sending AI request: hasText=${!text.isNullOrBlank()}, hasImage=${imageBase64 != null}")
             val response = try {
-                openRouterApi.getCompletion("Bearer $apiKey", request)
+                aiChatApi.chat(request)
             } catch (e: HttpException) {
                 val errorBody = e.response()?.errorBody()?.string()
-                Log.e("AiChatRepository", "OpenRouter error ${e.code()}: $errorBody")
+                Log.e("AiChatRepository", "GigaChat error ${e.code()}: $errorBody")
                 throw e
             }
-            Log.d("AiChatRepository", "AI response received: choices=${response.choices.size}")
 
-            val content = response.choices.firstOrNull()?.message?.content
-                ?: run {
-                    Log.e("AiChatRepository", "AI response has no choices or content")
-                    return Result.failure(Exception("Empty response"))
-                }
+            val content = response.content
 
             Log.d("AiChatRepository", "AI content: $content")
             val foodData = json.decodeFromString<FoodAiResponse>(content)
