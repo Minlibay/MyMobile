@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="h4 m-0"><i class="bi bi-people"></i> Пользователи</h1>
+    <div class="muted small">Список пользователей, профиль, настройки и семья.</div>
+  </div>
+  <a class="btn btn-sm btn-outline-light" href="/docs" target="_blank"><i class="bi bi-braces"></i> API Docs</a>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-dark align-middle m-0">
+        <thead>
+          <tr>
+            <th class="px-3">ID</th>
+            <th>Login</th>
+            <th>Профиль</th>
+            <th>Настройки</th>
+            <th>Семья</th>
+            <th class="text-end px-3">Создан</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td class="px-3"><span class="badge badge-soft">{{ r.user.id }}</span></td>
+            <td>
+              <div class="fw-semibold">{{ r.user.login }}</div>
+            </td>
+            <td>
+              {% if r.profile %}
+                <div class="small">
+                  <div><span class="muted">Рост:</span> {{ r.profile.height_cm }} см</div>
+                  <div><span class="muted">Вес:</span> {{ r.profile.weight_kg }}</div>
+                  <div><span class="muted">Возраст:</span> {{ r.profile.age }}</div>
+                  <div><span class="muted">Пол:</span> {{ r.profile.sex }}</div>
+                </div>
+              {% else %}
+                <span class="muted small">нет</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if r.settings %}
+                <div class="small">
+                  <div><span class="muted">Режим:</span> {{ r.settings.calorie_mode }}</div>
+                  <div><span class="muted">Шаги:</span> {{ r.settings.step_goal }}</div>
+                  <div><span class="muted">Оверрайд:</span> {{ r.settings.calorie_goal_override }}</div>
+                  <div><span class="muted">Напоминания:</span> {{ 'on' if r.settings.reminders_enabled else 'off' }}</div>
+                </div>
+              {% else %}
+                <span class="muted small">нет</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if r.family_name %}
+                <span class="badge badge-soft"><i class="bi bi-house-heart"></i> {{ r.family_name }}</span>
+              {% else %}
+                <span class="muted small">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end px-3"><span class="muted small">{{ r.user.created_at }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

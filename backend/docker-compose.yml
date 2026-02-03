@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-com.volovod.com.volovod.com.volovod.alta}
+      POSTGRES_USER: ${POSTGRES_USER:-com.volovod.com.volovod.com.volovod.alta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zhivoy_password}
+    volumes:
+      - zhivoy_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-com.volovod.com.volovod.com.volovod.alta}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      ACCESS_TTL_SECONDS: ${ACCESS_TTL_SECONDS:-900}
+      REFRESH_TTL_SECONDS: ${REFRESH_TTL_SECONDS:-2592000}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  zhivoy_pgdata:
+
+
+

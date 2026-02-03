@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки - Админка Alta</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar { background-color: #343a40 !important; }
+        .card { border: none; box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075); }
+        .card-header { background-color: #fff; border-bottom: 1px solid rgba(0,0,0,.125); font-weight: 600; }
+        .form-label { font-weight: 500; }
+        .btn-primary { background-color: #0d6efd; border-color: #0d6efd; }
+        .btn-primary:hover { background-color: #0b5ed7; border-color: #0a58ca; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/admin">Alta Админка</a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/admin">Главная</a>
+                <a class="nav-link active" href="/admin/settings">Настройки</a>
+                <a class="nav-link" href="/admin/gigachat">GigaChat</a>
+                <a class="nav-link" href="/admin/logout">Выйти</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-12">
+                <!-- Tabs -->
+                <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="privacy-tab" data-bs-toggle="tab" data-bs-target="#privacy" type="button" role="tab">Политика конфиденциальности</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="news-tab" data-bs-toggle="tab" data-bs-target="#news" type="button" role="tab">Новости</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="appodeal-tab" data-bs-toggle="tab" data-bs-target="#appodeal" type="button" role="tab">Appodeal</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="settingsTabsContent">
+                    <!-- Privacy Policy -->
+                    <div class="tab-pane fade show active" id="privacy" role="tabpanel">
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h5 class="mb-0">Политика конфиденциальности</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="privacyForm">
+                                    <div class="mb-3">
+                                        <label for="privacy_policy_text" class="form-label">Текст политики</label>
+                                        <textarea class="form-control" id="privacy_policy_text" rows="12" placeholder="Текст политики..."></textarea>
+                                        <div class="form-text">Этот текст будет показан пользователю в приложении. При изменении пользователям нужно будет принять политику снова.</div>
+                                    </div>
+                                    <div class="d-flex">
+                                        <button type="submit" class="btn btn-primary">Сохранить политику</button>
+                                    </div>
+                                </form>
+                                <div id="privacyResult" class="mt-3"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- News -->
+                    <div class="tab-pane fade" id="news" role="tabpanel">
+                        <div class="card mt-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Новости</h5>
+                                <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addNewsModal">Добавить новость</button>
+                            </div>
+                            <div class="card-body">
+                                <div id="newsList"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Appodeal -->
+                    <div class="tab-pane fade" id="appodeal" role="tabpanel">
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h5 class="mb-0">Настройки Appodeal</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="appodealForm">
+                                    <div class="mb-3">
+                                        <label for="appodeal_app_key" class="form-label">App Key</label>
+                                        <input type="text" class="form-control" id="appodeal_app_key" placeholder="Appodeal App Key">
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="appodeal_enabled">
+                                        <label class="form-check-label" for="appodeal_enabled">Включить рекламу</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="appodeal_banner_enabled">
+                                        <label class="form-check-label" for="appodeal_banner_enabled">Баннеры</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="appodeal_interstitial_enabled">
+                                        <label class="form-check-label" for="appodeal_interstitial_enabled">Interstitial</label>
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="appodeal_rewarded_enabled">
+                                        <label class="form-check-label" for="appodeal_rewarded_enabled">Rewarded</label>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Сохранить Appodeal</button>
+                                </form>
+                                <div id="appodealResult" class="mt-3"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit News Modal -->
+    <div class="modal fade" id="addNewsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="newsModalTitle">Добавить новость</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="newsForm">
+                        <input type="hidden" id="news_id">
+                        <div class="mb-3">
+                            <label for="news_title" class="form-label">Заголовок</label>
+                            <input type="text" class="form-control" id="news_title" placeholder="Заголовок новости" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="news_text" class="form-label">Текст новости</label>
+                            <textarea class="form-control" id="news_text" rows="8" placeholder="Текст новости..." required></textarea>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="news_button_enabled">
+                            <label class="form-check-label" for="news_button_enabled">Добавить кнопку</label>
+                        </div>
+                        <div class="mb-3">
+                            <label for="news_button_text" class="form-label">Текст кнопки</label>
+                            <input type="text" class="form-control" id="news_button_text" placeholder="Например: Подробнее">
+                        </div>
+                        <div class="mb-3">
+                            <label for="news_button_url" class="form-label">Ссылка кнопки (URL)</label>
+                            <input type="text" class="form-control" id="news_button_url" placeholder="https://example.com">
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="news_is_active" checked>
+                            <label class="form-check-label" for="news_is_active">Активна</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="saveNews()">Сохранить новость</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Privacy
+        async function loadPrivacy() {
+            try {
+                const response = await fetch('/admin/api/settings');
+                const data = await response.json();
+                document.getElementById('privacy_policy_text').value = data.privacy_policy_text || '';
+            } catch (e) {
+                showResult('privacyResult', 'Ошибка загрузки', 'danger');
+            }
+        }
+        document.getElementById('privacyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = document.getElementById('privacy_policy_text').value;
+            try {
+                const r = await fetch('/admin/api/settings', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ privacy_policy_text: text || null }),
+                });
+                if (r.ok) showResult('privacyResult', 'Сохранено', 'success');
+                else showResult('privacyResult', 'Ошибка', 'danger');
+            } catch (e) {
+                showResult('privacyResult', 'Ошибка', 'danger');
+            }
+        });
+
+        // News
+        async function loadNews() {
+            try {
+                const response = await fetch('/admin/announcements');
+                const items = await response.json();
+                const list = document.getElementById('newsList');
+                list.innerHTML = items.map(item => `
+                    <div class="border rounded p-3 mb-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6>${item.title}</h6>
+                                <p>${item.text}</p>
+                                ${item.button_enabled ? `<p><strong>Кнопка:</strong> ${item.button_text} → ${item.button_url}</p>` : ''}
+                                <small class="text-muted">Создана: ${new Date(item.created_at).toLocaleString('ru-RU')}</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary me-1" onclick="editNews(${item.id})">Редактировать</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteNews(${item.id})">Удалить</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('newsList').innerHTML = '<p class="text-danger">Ошибка загрузки новостей</p>';
+            }
+        }
+        function editNews(id) {
+            fetch(`/admin/announcements`)
+                .then(r => r.json())
+                .then(items => {
+                    const item = items.find(i => i.id === id);
+                    if (item) {
+                        document.getElementById('news_id').value = item.id;
+                        document.getElementById('news_title').value = item.title;
+                        document.getElementById('news_text').value = item.text;
+                        document.getElementById('news_button_enabled').checked = item.button_enabled;
+                        document.getElementById('news_button_text').value = item.button_text || '';
+                        document.getElementById('news_button_url').value = item.button_url || '';
+                        document.getElementById('news_is_active').checked = item.is_active;
+                        document.getElementById('newsModalTitle').textContent = 'Редактировать новость';
+                        new bootstrap.Modal(document.getElementById('addNewsModal')).show();
+                    }
+                });
+        }
+        async function saveNews() {
+            const id = document.getElementById('news_id').value;
+            const payload = {
+                title: document.getElementById('news_title').value,
+                text: document.getElementById('news_text').value,
+                button_enabled: document.getElementById('news_button_enabled').checked,
+                button_text: document.getElementById('news_button_text').value || null,
+                button_url: document.getElementById('news_button_url').value || null,
+                is_active: document.getElementById('news_is_active').checked,
+            };
+            try {
+                const r = await fetch(`/admin/announcements${id ? '/' + id : ''}`, {
+                    method: id ? 'PUT' : 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload),
+                });
+                if (r.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('addNewsModal')).hide();
+                    document.getElementById('newsForm').reset();
+                    document.getElementById('news_id').value = '';
+                    document.getElementById('newsModalTitle').textContent = 'Добавить новость';
+                    loadNews();
+                } else {
+                    alert('Ошибка сохранения');
+                }
+            } catch (e) {
+                alert('Ошибка сохранения');
+            }
+        }
+        async function deleteNews(id) {
+            if (!confirm('Удалить новость?')) return;
+            try {
+                const r = await fetch(`/admin/announcements/${id}`, { method: 'DELETE' });
+                if (r.ok) loadNews();
+                else alert('Ошибка удаления');
+            } catch (e) {
+                alert('Ошибка удаления');
+            }
+        }
+
+        // Appodeal
+        async function loadAppodeal() {
+            try {
+                const response = await fetch('/admin/api/settings');
+                const data = await response.json();
+                document.getElementById('appodeal_app_key').value = data.appodeal_app_key || '';
+                document.getElementById('appodeal_enabled').checked = !!data.appodeal_enabled;
+                document.getElementById('appodeal_banner_enabled').checked = !!data.appodeal_banner_enabled;
+                document.getElementById('appodeal_interstitial_enabled').checked = !!data.appodeal_interstitial_enabled;
+                document.getElementById('appodeal_rewarded_enabled').checked = !!data.appodeal_rewarded_enabled;
+            } catch (e) {
+                showResult('appodealResult', 'Ошибка загрузки', 'danger');
+            }
+        }
+        document.getElementById('appodealForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                appodeal_app_key: document.getElementById('appodeal_app_key').value.trim() || null,
+                appodeal_enabled: document.getElementById('appodeal_enabled').checked,
+                appodeal_banner_enabled: document.getElementById('appodeal_banner_enabled').checked,
+                appodeal_interstitial_enabled: document.getElementById('appodeal_interstitial_enabled').checked,
+                appodeal_rewarded_enabled: document.getElementById('appodeal_rewarded_enabled').checked,
+            };
+            try {
+                const r = await fetch('/admin/api/settings', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload),
+                });
+                if (r.ok) showResult('appodealResult', 'Сохранено', 'success');
+                else showResult('appodealResult', 'Ошибка', 'danger');
+            } catch (e) {
+                showResult('appodealResult', 'Ошибка', 'danger');
+            }
+        });
+
+        // Helpers
+        function showResult(elemId, message, type) {
+            document.getElementById(elemId).innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+
+        // Load on tab show
+        document.addEventListener('shown.bs.tab', function (e) {
+            if (e.target.id === 'privacy-tab') loadPrivacy();
+            if (e.target.id === 'news-tab') loadNews();
+            if (e.target.id === 'appodeal-tab') loadAppodeal();
+        });
+
+        // Load first tab on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPrivacy();
+        });
+    </script>
+</body>
+</html>
